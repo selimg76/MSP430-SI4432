@@ -1,0 +1,5701 @@
+/*  Configuring the MSP430-Dorji 4432 as TX to send call(red) button data to lamp
+ * Working on the dorji si4432 board,
+    26/10/2022 v4, using the v4 python script to automatically create code, will paste here (only the //INITIAL setup)
+    This code is obtained when powering on the button, in the while loop, I should use the code from call button press
+    Copyright Selim Gullulu
+    https://www.youtube.com/c/drselim
+*/
+#include <msp430.h>
+#include "si4332.h"
+
+
+
+#define MOSI BIT0 //   P2.0  (SDI) (Brackets) : Namings for SI4332
+#define MISO BIT1 //   P2.1 (SDO)   -- INPUT
+#define SCLK BIT4  //   P2.4
+//#define CE BIT5    // P2.5  //Not used for this code (&whole_project?)
+#define NIRQ BIT5 // P2.5 Using nIRQ from si4432  -- INPUT
+#define CSN BIT3   //P2.3  (nSEL)
+#define LED BIT0    //On-board LED p1.0
+
+#define BUTTON BIT3  //p1.3 on board button
+
+unsigned char status_reg;  //not used here, only for trial in the instruction_byte command
+int i;
+int j;
+int k;
+int x;
+
+unsigned char ALL_REGS[128];   //All 128 registers of SI4332 (8 bit)
+unsigned char DEV_VER[1];  //device version register (ADDR: 0x01)
+
+void SCLK_Pulse (void);  //To create a clock pulse high low
+void Send_Bit (unsigned int value);     //For sending 1 or zero
+
+void CSN_On (void);     //CSN On
+void CSN_Off (void);    //CSN Off
+void Write_Byte (int content);
+void Instruction_Byte_MSB_First (int content);
+void Read_Byte_MSB_First(int index, unsigned char regname[]);
+//void Dummy_Byte_MSB_First(int content);
+void Dummy_Byte_MSB_First(int content, unsigned char reg_addr);
+void Write_Byte_MSB_First(unsigned char content[], int index2);
+void Write_Payload_MSB_First(int pyld[], int index3);
+void main(void)
+{
+        __delay_cycles(15000);  //wait for POR of si4432
+        WDTCTL = WDTPW | WDTHOLD;   // stop watchdog timer
+        P1OUT = 0x00;
+        P1DIR &= ~BUTTON;
+        P2OUT &= 0x00;
+        P2DIR |= MOSI + SCLK + CSN ;  //Output Pins
+        P2DIR &= ~MISO;
+        P2DIR &= ~NIRQ;
+
+        CSN_On();
+        //******************
+        //**START DECODING**
+        //******************
+        //0
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //READ OPERATION
+        //1
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //2
+        //['', '\n']
+        // MOSI:  MISO:
+        //3
+        //['', '\n']
+        // MOSI:  MISO:
+        //4
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIALCOMMAND LINE
+        //5
+        //['0xFF', '0x03\n']
+        // MOSI: FF MISO: 03
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 3 0b11
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //6
+        //['', '\n']
+        // MOSI:  MISO:
+        //7
+        //['', '\n']
+        // MOSI:  MISO:
+        //8
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        ////INITIAL COMMAND LINE
+        //9
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //10
+        //['', '\n']
+        // MOSI:  MISO:
+        //11
+        //['', '\n']
+        // MOSI:  MISO:
+        //12
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        ////INITIAL COMMAND LINE
+        //13
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //14
+        //['', '\n']
+        // MOSI:  MISO:
+        //15
+        //['', '\n']
+        // MOSI:  MISO:
+        //16
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        ////INITIAL COMMAND LINE
+        //17
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //18
+        //['', '\n']
+        // MOSI:  MISO:
+        //19
+        //['', '\n']
+        // MOSI:  MISO:
+        //20
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        ////INITIAL COMMAND LINE
+        //21
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //22
+        //['', '\n']
+        // MOSI:  MISO:
+        //23
+        //['', '\n']
+        // MOSI:  MISO:
+        //24
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        ////INITIAL COMMAND LINE
+        //25
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //26
+        //['', '\n']
+        // MOSI:  MISO:
+        //27
+        //['', '\n']
+        // MOSI:  MISO:
+        //28
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        ////INITIAL COMMAND LINE
+        //29
+        //['0x02', '0x00\n']
+        // MOSI: 02 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x2);
+        CSN_On();
+        //30
+        //['', '\n']
+        // MOSI:  MISO:
+        //31
+        //['', '\n']
+        // MOSI:  MISO:
+        //32
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        ////INITIAL COMMAND LINE
+        //33
+        //['0x81', '0x00\n']
+        // MOSI: 81 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 129 0b10000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x81);
+        CSN_On();
+        //34
+        //['', '\n']
+        // MOSI:  MISO:
+        //35
+        //['', '\n']
+        // MOSI:  MISO:
+        //36
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        ////INITIAL COMMAND LINE
+        //37
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //38
+        //['', '\n']
+        // MOSI:  MISO:
+        //39
+        //['', '\n']
+        // MOSI:  MISO:
+        //40
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        ////INITIAL COMMAND LINE
+        //41
+        //['0xFF', '0x01\n']
+        // MOSI: FF MISO: 01
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //42
+        //['', '\n']
+        // MOSI:  MISO:
+        //43
+        //['', '\n']
+        // MOSI:  MISO:
+        //44
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        ////INITIAL COMMAND LINE
+        //45
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //46
+        //['', '\n']
+        // MOSI:  MISO:
+        //47
+        //['', '\n']
+        // MOSI:  MISO:
+        //48
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        ////INITIAL COMMAND LINE
+        //49
+        //['0x06', '0x00\n']
+        // MOSI: 06 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 6 0b110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x6);
+        CSN_On();
+        //50
+        //['', '\n']
+        // MOSI:  MISO:
+        //51
+        //['', '\n']
+        // MOSI:  MISO:
+        //52
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        ////INITIAL COMMAND LINE
+        //53
+        //['0x41', '0x00\n']
+        // MOSI: 41 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 65 0b1000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x41);
+        CSN_On();
+        //54
+        //['', '\n']
+        // MOSI:  MISO:
+        //55
+        //['', '\n']
+        // MOSI:  MISO:
+        //56
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        ////INITIAL COMMAND LINE
+        //57
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //58
+        //['', '\n']
+        // MOSI:  MISO:
+        //59
+        //['', '\n']
+        // MOSI:  MISO:
+        //60
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        ////INITIAL COMMAND LINE
+        //61
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //62
+        //['', '\n']
+        // MOSI:  MISO:
+        //63
+        //['', '\n']
+        // MOSI:  MISO:
+        //64
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        ////INITIAL COMMAND LINE
+        //65
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //66
+        //['', '\n']
+        // MOSI:  MISO:
+        //67
+        //['', '\n']
+        // MOSI:  MISO:
+        //68
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        ////INITIAL COMMAND LINE
+        //69
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 4 0b100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x4);
+        CSN_On();
+        //70
+        //['', '\n']
+        // MOSI:  MISO:
+        //71
+        //['', '\n']
+        // MOSI:  MISO:
+        //72
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        ////INITIAL COMMAND LINE
+        //73
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //74
+        //['', '\n']
+        // MOSI:  MISO:
+        //75
+        //['', '\n']
+        // MOSI:  MISO:
+        //76
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        ////INITIAL COMMAND LINE
+        //77
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //78
+        //['', '\n']
+        // MOSI:  MISO:
+        //79
+        //['', '\n']
+        // MOSI:  MISO:
+        //80
+        //['0xB3', '0x00\n']
+        // MOSI: B3 MISO: 00
+        ////INITIAL COMMAND LINE
+        //81
+        //['0x42', '0x00\n']
+        // MOSI: 42 MISO: 00
+        // WRITE REGISTER: 0x33 'Header Control 2' WRITE VALUE= 66 0b1000010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x33);
+        Instruction_Byte_MSB_First(0x42);
+        CSN_On();
+        //82
+        //['', '\n']
+        // MOSI:  MISO:
+        //83
+        //['', '\n']
+        // MOSI:  MISO:
+        //84
+        //['0xB2', '0x00\n']
+        // MOSI: B2 MISO: 00
+        ////INITIAL COMMAND LINE
+        //85
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x32 'Header Control 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x32);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //86
+        //['', '\n']
+        // MOSI:  MISO:
+        //87
+        //['', '\n']
+        // MOSI:  MISO:
+        //88
+        //['0xB6', '0x00\n']
+        // MOSI: B6 MISO: 00
+        ////INITIAL COMMAND LINE
+        //89
+        //['0x2D', '0x00\n']
+        // MOSI: 2D MISO: 00
+        // WRITE REGISTER: 0x36 'Sync Word 3' WRITE VALUE= 45 0b101101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x36);
+        Instruction_Byte_MSB_First(0x2d);
+        CSN_On();
+        //90
+        //['', '\n']
+        // MOSI:  MISO:
+        //91
+        //['', '\n']
+        // MOSI:  MISO:
+        //92
+        //['0xB7', '0x00\n']
+        // MOSI: B7 MISO: 00
+        ////INITIAL COMMAND LINE
+        //93
+        //['0xD4', '0x00\n']
+        // MOSI: D4 MISO: 00
+        // WRITE REGISTER: 0x37 'Sync Word 2' WRITE VALUE= 212 0b11010100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x37);
+        Instruction_Byte_MSB_First(0xd4);
+        CSN_On();
+        //94
+        //['', '\n']
+        // MOSI:  MISO:
+        //95
+        //['', '\n']
+        // MOSI:  MISO:
+        //96
+        //['0x9C', '0x00\n']
+        // MOSI: 9C MISO: 00
+        ////INITIAL COMMAND LINE
+        //97
+        //['0xAB', '0x00\n']
+        // MOSI: AB MISO: 00
+        // WRITE REGISTER: 0x1c '"IF Filter' WRITE VALUE= 171 0b10101011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1c);
+        Instruction_Byte_MSB_First(0xab);
+        CSN_On();
+        //98
+        //['', '\n']
+        // MOSI:  MISO:
+        //99
+        //['', '\n']
+        // MOSI:  MISO:
+        //100
+        //['0xA0', '0x00\n']
+        // MOSI: A0 MISO: 00
+        ////INITIAL COMMAND LINE
+        //101
+        //['0x71', '0x00\n']
+        // MOSI: 71 MISO: 00
+        // WRITE REGISTER: 0x20 'Clock Recovery Oversampling Ratio' WRITE VALUE= 113 0b1110001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x20);
+        Instruction_Byte_MSB_First(0x71);
+        CSN_On();
+        //102
+        //['', '\n']
+        // MOSI:  MISO:
+        //103
+        //['', '\n']
+        // MOSI:  MISO:
+        //104
+        //['0xA1', '0x00\n']
+        // MOSI: A1 MISO: 00
+        ////INITIAL COMMAND LINE
+        //105
+        //['0x40', '0x00\n']
+        // MOSI: 40 MISO: 00
+        // WRITE REGISTER: 0x21 'Clock Recovery Offset 2' WRITE VALUE= 64 0b1000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x21);
+        Instruction_Byte_MSB_First(0x40);
+        CSN_On();
+        //106
+        //['', '\n']
+        // MOSI:  MISO:
+        //107
+        //['', '\n']
+        // MOSI:  MISO:
+        //108
+        //['0xA2', '0x00\n']
+        // MOSI: A2 MISO: 00
+        ////INITIAL COMMAND LINE
+        //109
+        //['0x34', '0x00\n']
+        // MOSI: 34 MISO: 00
+        // WRITE REGISTER: 0x22 'Clock Recovery Offset 1' WRITE VALUE= 52 0b110100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x22);
+        Instruction_Byte_MSB_First(0x34);
+        CSN_On();
+        //110
+        //['', '\n']
+        // MOSI:  MISO:
+        //111
+        //['', '\n']
+        // MOSI:  MISO:
+        //112
+        //['0xA3', '0x00\n']
+        // MOSI: A3 MISO: 00
+        ////INITIAL COMMAND LINE
+        //113
+        //['0x6E', '0x00\n']
+        // MOSI: 6E MISO: 00
+        // WRITE REGISTER: 0x23 'Clock Recovery Offset 0' WRITE VALUE= 110 0b1101110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x23);
+        Instruction_Byte_MSB_First(0x6e);
+        CSN_On();
+        //114
+        //['', '\n']
+        // MOSI:  MISO:
+        //115
+        //['', '\n']
+        // MOSI:  MISO:
+        //116
+        //['0xA4', '0x00\n']
+        // MOSI: A4 MISO: 00
+        ////INITIAL COMMAND LINE
+        //117
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x24 'Clock Recovery Timing Loop Gain 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x24);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //118
+        //['', '\n']
+        // MOSI:  MISO:
+        //119
+        //['', '\n']
+        // MOSI:  MISO:
+        //120
+        //['0xA5', '0x00\n']
+        // MOSI: A5 MISO: 00
+        //INITIAL COMMAND LINE
+        //121
+        //['0x0C', '0x00\n']
+        // MOSI: 0C MISO: 00
+        // WRITE REGISTER: 0x25 'Clock Recovery Timing Loop Gain 0' WRITE VALUE= 12 0b1100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x25);
+        Instruction_Byte_MSB_First(0xc);
+        CSN_On();
+        //122
+        //['', '\n']
+        // MOSI:  MISO:
+        //123
+        //['', '\n']
+        // MOSI:  MISO:
+        //124
+        //['0xEE', '0x00\n']
+        // MOSI: EE MISO: 00
+        //INITIAL COMMAND LINE
+        //125
+        //['0x27', '0x00\n']
+        // MOSI: 27 MISO: 00
+        // WRITE REGISTER: 0x6e 'TX Data Rate 1' WRITE VALUE= 39 0b100111
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6e);
+        Instruction_Byte_MSB_First(0x27);
+        CSN_On();
+        //126
+        //['', '\n']
+        // MOSI:  MISO:
+        //127
+        //['', '\n']
+        // MOSI:  MISO:
+        //128
+        //['0xEF', '0x00\n']
+        // MOSI: EF MISO: 00
+        //INITIAL COMMAND LINE
+        //129
+        //['0x52', '0x00\n']
+        // MOSI: 52 MISO: 00
+        // WRITE REGISTER: 0x6f 'TX Data Rate 0' WRITE VALUE= 82 0b1010010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6f);
+        Instruction_Byte_MSB_First(0x52);
+        CSN_On();
+        //130
+        //['', '\n']
+        // MOSI:  MISO:
+        //131
+        //['', '\n']
+        // MOSI:  MISO:
+        //132
+        //['0xF0', '0x00\n']
+        // MOSI: F0 MISO: 00
+        //INITIAL COMMAND LINE
+        //133
+        //['0x24', '0x00\n']
+        // MOSI: 24 MISO: 00
+        // WRITE REGISTER: 0x70 'Modulation Mode Control 1' WRITE VALUE= 36 0b100100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x70);
+        Instruction_Byte_MSB_First(0x24);
+        CSN_On();
+        //134
+        //['', '\n']
+        // MOSI:  MISO:
+        //135
+        //['', '\n']
+        // MOSI:  MISO:
+        //136
+        //['0xF2', '0x00\n']
+        // MOSI: F2 MISO: 00
+        //INITIAL COMMAND LINE
+        //137
+        //['0x50', '0x00\n']
+        // MOSI: 50 MISO: 00
+        // WRITE REGISTER: 0x72 'Frequency Deviation ' WRITE VALUE= 80 0b1010000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x72);
+        Instruction_Byte_MSB_First(0x50);
+        CSN_On();
+        //138
+        //['', '\n']
+        // MOSI:  MISO:
+        //139
+        //['', '\n']
+        // MOSI:  MISO:
+        //140
+        //['0x9D', '0x00\n']
+        // MOSI: 9D MISO: 00
+        //INITIAL COMMAND LINE
+        //141
+        //['0x44', '0x00\n']
+        // MOSI: 44 MISO: 00
+        // WRITE REGISTER: 0x1d 'AFC Loop Gearshift Override' WRITE VALUE= 68 0b1000100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1d);
+        Instruction_Byte_MSB_First(0x44);
+        CSN_On();
+        //142
+        //['', '\n']
+        // MOSI:  MISO:
+        //143
+        //['', '\n']
+        // MOSI:  MISO:
+        //144
+        //['0xAA', '0x00\n']
+        // MOSI: AA MISO: 00
+        //INITIAL COMMAND LINE
+        //145
+        //['0x2E', '0x00\n']
+        // MOSI: 2E MISO: 00
+        // WRITE REGISTER: 0x2a 'AFC Limiter' WRITE VALUE= 46 0b101110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x2a);
+        Instruction_Byte_MSB_First(0x2e);
+        CSN_On();
+        //146
+        //['', '\n']
+        // MOSI:  MISO:
+        //147
+        //['', '\n']
+        // MOSI:  MISO:
+        //148
+        //['0x9E', '0x00\n']
+        // MOSI: 9E MISO: 00
+        //INITIAL COMMAND LINE
+        //149
+        //['0x0A', '0x00\n']
+        // MOSI: 0A MISO: 00
+        // WRITE REGISTER: 0x1e 'AFC Timing Control' WRITE VALUE= 10 0b1010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1e);
+        Instruction_Byte_MSB_First(0xa);
+        CSN_On();
+        //150
+        //['', '\n']
+        // MOSI:  MISO:
+        //151
+        //['', '\n']
+        // MOSI:  MISO:
+        //152
+        //['0xB5', '0x00\n']
+        // MOSI: B5 MISO: 00
+        //INITIAL COMMAND LINE
+        //153
+        //['0x2A', '0x00\n']
+        // MOSI: 2A MISO: 00
+        // WRITE REGISTER: 0x35 'Preamble Detection Control' WRITE VALUE= 42 0b101010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x35);
+        Instruction_Byte_MSB_First(0x2a);
+        CSN_On();
+        //154
+        //['', '\n']
+        // MOSI:  MISO:
+        //155
+        //['', '\n']
+        // MOSI:  MISO:
+        //156
+        //['0xF5', '0x00\n']
+        // MOSI: F5 MISO: 00
+        //INITIAL COMMAND LINE
+        //157
+        //['0x53', '0x00\n']
+        // MOSI: 53 MISO: 00
+        // WRITE REGISTER: 0x75 'Frequency Band Select ' WRITE VALUE= 83 0b1010011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x75);
+        Instruction_Byte_MSB_First(0x53);
+        CSN_On();
+        //158
+        //['', '\n']
+        // MOSI:  MISO:
+        //159
+        //['', '\n']
+        // MOSI:  MISO:
+        //160
+        //['0xF6', '0x00\n']
+        // MOSI: F6 MISO: 00
+        //INITIAL COMMAND LINE
+        //161
+        //['0xA3', '0x00\n']
+        // MOSI: A3 MISO: 00
+        // WRITE REGISTER: 0x76 'Nominal Carrier Frequency 1 ' WRITE VALUE= 163 0b10100011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x76);
+        Instruction_Byte_MSB_First(0xa3);
+        CSN_On();
+        //162
+        //['', '\n']
+        // MOSI:  MISO:
+        //163
+        //['', '\n']
+        // MOSI:  MISO:
+        //164
+        //['0xF7', '0x00\n']
+        // MOSI: F7 MISO: 00
+        //INITIAL COMMAND LINE
+        //165
+        //['0xC0', '0x00\n']
+        // MOSI: C0 MISO: 00
+        // WRITE REGISTER: 0x77 'Nominal Carrier Frequency 0' WRITE VALUE= 192 0b11000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x77);
+        Instruction_Byte_MSB_First(0xc0);
+        CSN_On();
+        //166
+        //['', '\n']
+        // MOSI:  MISO:
+        //167
+        //['', '\n']
+        // MOSI:  MISO:
+        //168
+        //['0xFA', '0x00\n']
+        // MOSI: FA MISO: 00
+        //INITIAL COMMAND LINE
+        //169
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x7a 'Frequency Hopping Step Size' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7a);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //170
+        //['', '\n']
+        // MOSI:  MISO:
+        //171
+        //['', '\n']
+        // MOSI:  MISO:
+        //172
+        //['0xB4', '0x00\n']
+        // MOSI: B4 MISO: 00
+        //INITIAL COMMAND LINE
+        //173
+        //['0x08', '0x00\n']
+        // MOSI: 08 MISO: 00
+        // WRITE REGISTER: 0x34 'Preamble Length' WRITE VALUE= 8 0b1000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x34);
+        Instruction_Byte_MSB_First(0x8);
+        CSN_On();
+        //174
+        //['', '\n']
+        // MOSI:  MISO:
+        //175
+        //['', '\n']
+        // MOSI:  MISO:
+        //176
+        //['0x8B', '0x00\n']
+        // MOSI: 8B MISO: 00
+        //INITIAL COMMAND LINE
+        //177
+        //['0xD4', '0x00\n']
+        // MOSI: D4 MISO: 00
+        // WRITE REGISTER: 0xb 'GPIO0 Configuration' WRITE VALUE= 212 0b11010100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0xb);
+        Instruction_Byte_MSB_First(0xd4);
+        CSN_On();
+        //178
+        //['', '\n']
+        // MOSI:  MISO:
+        //179
+        //['', '\n']
+        // MOSI:  MISO:
+        //180
+        //['0x8C', '0x00\n']
+        // MOSI: 8C MISO: 00
+        //INITIAL COMMAND LINE
+        //181
+        //['0xD2', '0x00\n']
+        // MOSI: D2 MISO: 00
+        // WRITE REGISTER: 0xc 'GPIO1 Configuration' WRITE VALUE= 210 0b11010010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0xc);
+        Instruction_Byte_MSB_First(0xd2);
+        CSN_On();
+        //182
+        //['', '\n']
+        // MOSI:  MISO:
+        //183
+        //['', '\n']
+        // MOSI:  MISO:
+        //184
+        //['0x8D', '0x00\n']
+        // MOSI: 8D MISO: 00
+        //INITIAL COMMAND LINE
+        //185
+        //['0xD5', '0x00\n']
+        // MOSI: D5 MISO: 00
+        // WRITE REGISTER: 0xd 'GPIO2 Configuration' WRITE VALUE= 213 0b11010101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0xd);
+        Instruction_Byte_MSB_First(0xd5);
+        CSN_On();
+        //186
+        //['', '\n']
+        // MOSI:  MISO:
+        //187
+        //['', '\n']
+        // MOSI:  MISO:
+        //188
+        //['0xB0', '0x00\n']
+        // MOSI: B0 MISO: 00
+        //INITIAL COMMAND LINE
+        //189
+        //['0x8D', '0x00\n']
+        // MOSI: 8D MISO: 00
+        // WRITE REGISTER: 0x30 'Data Access Control' WRITE VALUE= 141 0b10001101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x30);
+        Instruction_Byte_MSB_First(0x8d);
+        CSN_On();
+        //190
+        //['', '\n']
+        // MOSI:  MISO:
+        //191
+        //['', '\n']
+        // MOSI:  MISO:
+        //192
+        //['0xF1', '0x00\n']
+        // MOSI: F1 MISO: 00
+        //INITIAL COMMAND LINE
+        //193
+        //['0x63', '0x00\n']
+        // MOSI: 63 MISO: 00
+        // WRITE REGISTER: 0x71 'Modulation Mode Control 2' WRITE VALUE= 99 0b1100011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x71);
+        Instruction_Byte_MSB_First(0x63);
+        CSN_On();
+        //194
+        //['', '\n']
+        // MOSI:  MISO:
+        //195
+        //['', '\n']
+        // MOSI:  MISO:
+        //196
+        //['0x9F', '0x00\n']
+        // MOSI: 9F MISO: 00
+        //INITIAL COMMAND LINE
+        //197
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        // WRITE REGISTER: 0x1f 'Clock Recovery Gearshift Override' WRITE VALUE= 3 0b11
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1f);
+        Instruction_Byte_MSB_First(0x3);
+        CSN_On();
+        //198
+        //['', '\n']
+        // MOSI:  MISO:
+        //199
+        //['', '\n']
+        // MOSI:  MISO:
+        //200
+        //['0xD8', '0x00\n']
+        // MOSI: D8 MISO: 00
+        //INITIAL COMMAND LINE
+        //201
+        //['0x80', '0x00\n']
+        // MOSI: 80 MISO: 00
+        // WRITE REGISTER: 0x58 '' WRITE VALUE= 128 0b10000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x58);
+        Instruction_Byte_MSB_First(0x80);
+        CSN_On();
+        //202
+        //['', '\n']
+        // MOSI:  MISO:
+        //203
+        //['', '\n']
+        // MOSI:  MISO:
+        //204
+        //['0xD1', '0x00\n']
+        // MOSI: D1 MISO: 00
+        //INITIAL COMMAND LINE
+        //205
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x51 '' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x51);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //206
+        //['', '\n']
+        // MOSI:  MISO:
+        //207
+        //['', '\n']
+        // MOSI:  MISO:
+        //208
+        //['0xD0', '0x00\n']
+        // MOSI: D0 MISO: 00
+        //INITIAL COMMAND LINE
+        //209
+        //['0x0B', '0x00\n']
+        // MOSI: 0B MISO: 00
+        // WRITE REGISTER: 0x50 '' WRITE VALUE= 11 0b1011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x50);
+        Instruction_Byte_MSB_First(0xb);
+        CSN_On();
+        //210
+        //['', '\n']
+        // MOSI:  MISO:
+        //211
+        //['', '\n']
+        // MOSI:  MISO:
+        //212
+        //['0xE9', '0x00\n']
+        // MOSI: E9 MISO: 00
+        //INITIAL COMMAND LINE
+        //213
+        //['0x60', '0x00\n']
+        // MOSI: 60 MISO: 00
+        // WRITE REGISTER: 0x69 'AGC Override 1' WRITE VALUE= 96 0b1100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x69);
+        Instruction_Byte_MSB_First(0x60);
+        CSN_On();
+        //214
+        //['', '\n']
+        // MOSI:  MISO:
+        //215
+        //['', '\n']
+        // MOSI:  MISO:
+        //216
+        //['0x89', '0x00\n']
+        // MOSI: 89 MISO: 00
+        //INITIAL COMMAND LINE
+        //217
+        //['0x61', '0x00\n']
+        // MOSI: 61 MISO: 00
+        // WRITE REGISTER: 0x9 'Crystal Oscillator Load Capacitance' WRITE VALUE= 97 0b1100001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x9);
+        Instruction_Byte_MSB_First(0x61);
+        CSN_On();
+        //218
+        //['', '\n']
+        // MOSI:  MISO:
+        //219
+        //['', '\n']
+        // MOSI:  MISO:
+        //220
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //221
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //222
+        //['', '\n']
+        // MOSI:  MISO:
+        //223
+        //['', '\n']
+        // MOSI:  MISO:
+        //224
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //225
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //226
+        //['', '\n']
+        // MOSI:  MISO:
+        //227
+        //['', '\n']
+        // MOSI:  MISO:
+        //228
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //229
+        //['0x06', '0x00\n']
+        // MOSI: 06 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 6 0b110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x6);
+        CSN_On();
+        //230
+        //['', '\n']
+        // MOSI:  MISO:
+        //231
+        //['', '\n']
+        // MOSI:  MISO:
+        //232
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //233
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //234
+        //['', '\n']
+        // MOSI:  MISO:
+        //235
+        //['', '\n']
+        // MOSI:  MISO:
+        //236
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //237
+        //['0xFF', '0x00\n']
+        // MOSI: FF MISO: 00
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //238
+        //['', '\n']
+        // MOSI:  MISO:
+        //239
+        //['', '\n']
+        // MOSI:  MISO:
+        //240
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //241
+        //['0x41', '0x00\n']
+        // MOSI: 41 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 65 0b1000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x41);
+        CSN_On();
+        //242
+        //['', '\n']
+        // MOSI:  MISO:
+        //243
+        //['', '\n']
+        // MOSI:  MISO:
+        //244
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //245
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //246
+        //['', '\n']
+        // MOSI:  MISO:
+        //247
+        //['', '\n']
+        // MOSI:  MISO:
+        //248
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //249
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //250
+        //['', '\n']
+        // MOSI:  MISO:
+        //251
+        //['', '\n']
+        // MOSI:  MISO:
+        //252
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //253
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //254
+        //['', '\n']
+        // MOSI:  MISO:
+        //255
+        //['', '\n']
+        // MOSI:  MISO:
+        //256
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //257
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 4 0b100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x4);
+        CSN_On();
+        //258
+        //['', '\n']
+        // MOSI:  MISO:
+        //259
+        //['', '\n']
+        // MOSI:  MISO:
+        //260
+        //['0xB3', '0x00\n']
+        // MOSI: B3 MISO: 00
+        //INITIAL COMMAND LINE
+        //261
+        //['0x42', '0x00\n']
+        // MOSI: 42 MISO: 00
+        // WRITE REGISTER: 0x33 'Header Control 2' WRITE VALUE= 66 0b1000010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x33);
+        Instruction_Byte_MSB_First(0x42);
+        CSN_On();
+        //262
+        //['', '\n']
+        // MOSI:  MISO:
+        //263
+        //['', '\n']
+        // MOSI:  MISO:
+        //264
+        //['0x9C', '0x00\n']
+        // MOSI: 9C MISO: 00
+        //INITIAL COMMAND LINE
+        //265
+        //['0xAB', '0x00\n']
+        // MOSI: AB MISO: 00
+        // WRITE REGISTER: 0x1c '"IF Filter' WRITE VALUE= 171 0b10101011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1c);
+        Instruction_Byte_MSB_First(0xab);
+        CSN_On();
+        //266
+        //['', '\n']
+        // MOSI:  MISO:
+        //267
+        //['', '\n']
+        // MOSI:  MISO:
+        //268
+        //['0xA0', '0x00\n']
+        // MOSI: A0 MISO: 00
+        //INITIAL COMMAND LINE
+        //269
+        //['0x71', '0x00\n']
+        // MOSI: 71 MISO: 00
+        // WRITE REGISTER: 0x20 'Clock Recovery Oversampling Ratio' WRITE VALUE= 113 0b1110001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x20);
+        Instruction_Byte_MSB_First(0x71);
+        CSN_On();
+        //270
+        //['', '\n']
+        // MOSI:  MISO:
+        //271
+        //['', '\n']
+        // MOSI:  MISO:
+        //272
+        //['0xA1', '0x00\n']
+        // MOSI: A1 MISO: 00
+        //INITIAL COMMAND LINE
+        //273
+        //['0x40', '0x00\n']
+        // MOSI: 40 MISO: 00
+        // WRITE REGISTER: 0x21 'Clock Recovery Offset 2' WRITE VALUE= 64 0b1000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x21);
+        Instruction_Byte_MSB_First(0x40);
+        CSN_On();
+        //274
+        //['', '\n']
+        // MOSI:  MISO:
+        //275
+        //['', '\n']
+        // MOSI:  MISO:
+        //276
+        //['0xA2', '0x00\n']
+        // MOSI: A2 MISO: 00
+        //INITIAL COMMAND LINE
+        //277
+        //['0x34', '0x00\n']
+        // MOSI: 34 MISO: 00
+        // WRITE REGISTER: 0x22 'Clock Recovery Offset 1' WRITE VALUE= 52 0b110100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x22);
+        Instruction_Byte_MSB_First(0x34);
+        CSN_On();
+        //278
+        //['', '\n']
+        // MOSI:  MISO:
+        //279
+        //['', '\n']
+        // MOSI:  MISO:
+        //280
+        //['0xA3', '0x00\n']
+        // MOSI: A3 MISO: 00
+        //INITIAL COMMAND LINE
+        //281
+        //['0x6E', '0x00\n']
+        // MOSI: 6E MISO: 00
+        // WRITE REGISTER: 0x23 'Clock Recovery Offset 0' WRITE VALUE= 110 0b1101110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x23);
+        Instruction_Byte_MSB_First(0x6e);
+        CSN_On();
+        //282
+        //['', '\n']
+        // MOSI:  MISO:
+        //283
+        //['', '\n']
+        // MOSI:  MISO:
+        //284
+        //['0xA4', '0x00\n']
+        // MOSI: A4 MISO: 00
+        //INITIAL COMMAND LINE
+        //285
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x24 'Clock Recovery Timing Loop Gain 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x24);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //286
+        //['', '\n']
+        // MOSI:  MISO:
+        //287
+        //['', '\n']
+        // MOSI:  MISO:
+        //288
+        //['0xA5', '0x00\n']
+        // MOSI: A5 MISO: 00
+        //INITIAL COMMAND LINE
+        //289
+        //['0x0C', '0x00\n']
+        // MOSI: 0C MISO: 00
+        // WRITE REGISTER: 0x25 'Clock Recovery Timing Loop Gain 0' WRITE VALUE= 12 0b1100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x25);
+        Instruction_Byte_MSB_First(0xc);
+        CSN_On();
+        //290
+        //['', '\n']
+        // MOSI:  MISO:
+        //291
+        //['', '\n']
+        // MOSI:  MISO:
+        //292
+        //['0xEE', '0x00\n']
+        // MOSI: EE MISO: 00
+        //INITIAL COMMAND LINE
+        //293
+        //['0x27', '0x00\n']
+        // MOSI: 27 MISO: 00
+        // WRITE REGISTER: 0x6e 'TX Data Rate 1' WRITE VALUE= 39 0b100111
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6e);
+        Instruction_Byte_MSB_First(0x27);
+        CSN_On();
+        //294
+        //['', '\n']
+        // MOSI:  MISO:
+        //295
+        //['', '\n']
+        // MOSI:  MISO:
+        //296
+        //['0xEF', '0x00\n']
+        // MOSI: EF MISO: 00
+        //INITIAL COMMAND LINE
+        //297
+        //['0x52', '0x00\n']
+        // MOSI: 52 MISO: 00
+        // WRITE REGISTER: 0x6f 'TX Data Rate 0' WRITE VALUE= 82 0b1010010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6f);
+        Instruction_Byte_MSB_First(0x52);
+        CSN_On();
+        //298
+        //['', '\n']
+        // MOSI:  MISO:
+        //299
+        //['', '\n']
+        // MOSI:  MISO:
+        //300
+        //['0xF0', '0x00\n']
+        // MOSI: F0 MISO: 00
+        //INITIAL COMMAND LINE
+        //301
+        //['0x24', '0x00\n']
+        // MOSI: 24 MISO: 00
+        // WRITE REGISTER: 0x70 'Modulation Mode Control 1' WRITE VALUE= 36 0b100100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x70);
+        Instruction_Byte_MSB_First(0x24);
+        CSN_On();
+        //302
+        //['', '\n']
+        // MOSI:  MISO:
+        //303
+        //['', '\n']
+        // MOSI:  MISO:
+        //304
+        //['0xF2', '0x00\n']
+        // MOSI: F2 MISO: 00
+        //INITIAL COMMAND LINE
+        //305
+        //['0x50', '0x00\n']
+        // MOSI: 50 MISO: 00
+        // WRITE REGISTER: 0x72 'Frequency Deviation ' WRITE VALUE= 80 0b1010000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x72);
+        Instruction_Byte_MSB_First(0x50);
+        CSN_On();
+        //306
+        //['', '\n']
+        // MOSI:  MISO:
+        //307
+        //['', '\n']
+        // MOSI:  MISO:
+        //308
+        //['0x9D', '0x00\n']
+        // MOSI: 9D MISO: 00
+        //INITIAL COMMAND LINE
+        //309
+        //['0x44', '0x00\n']
+        // MOSI: 44 MISO: 00
+        // WRITE REGISTER: 0x1d 'AFC Loop Gearshift Override' WRITE VALUE= 68 0b1000100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1d);
+        Instruction_Byte_MSB_First(0x44);
+        CSN_On();
+        //310
+        //['', '\n']
+        // MOSI:  MISO:
+        //311
+        //['', '\n']
+        // MOSI:  MISO:
+        //312
+        //['0xAA', '0x00\n']
+        // MOSI: AA MISO: 00
+        //INITIAL COMMAND LINE
+        //313
+        //['0x2D', '0x00\n']
+        // MOSI: 2D MISO: 00
+        // WRITE REGISTER: 0x2a 'AFC Limiter' WRITE VALUE= 45 0b101101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x2a);
+        Instruction_Byte_MSB_First(0x2d);
+        CSN_On();
+        //314
+        //['', '\n']
+        // MOSI:  MISO:
+        //315
+        //['', '\n']
+        // MOSI:  MISO:
+        //316
+        //['0x9E', '0x00\n']
+        // MOSI: 9E MISO: 00
+        //INITIAL COMMAND LINE
+        //317
+        //['0x0A', '0x00\n']
+        // MOSI: 0A MISO: 00
+        // WRITE REGISTER: 0x1e 'AFC Timing Control' WRITE VALUE= 10 0b1010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1e);
+        Instruction_Byte_MSB_First(0xa);
+        CSN_On();
+        //318
+        //['', '\n']
+        // MOSI:  MISO:
+        //319
+        //['', '\n']
+        // MOSI:  MISO:
+        //320
+        //['0xB5', '0x00\n']
+        // MOSI: B5 MISO: 00
+        //INITIAL COMMAND LINE
+        //321
+        //['0x2A', '0x00\n']
+        // MOSI: 2A MISO: 00
+        // WRITE REGISTER: 0x35 'Preamble Detection Control' WRITE VALUE= 42 0b101010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x35);
+        Instruction_Byte_MSB_First(0x2a);
+        CSN_On();
+        //322
+        //['', '\n']
+        // MOSI:  MISO:
+        //323
+        //['', '\n']
+        // MOSI:  MISO:
+        //324
+        //['0xF5', '0x00\n']
+        // MOSI: F5 MISO: 00
+        //INITIAL COMMAND LINE
+        //325
+        //['0x53', '0x00\n']
+        // MOSI: 53 MISO: 00
+        // WRITE REGISTER: 0x75 'Frequency Band Select ' WRITE VALUE= 83 0b1010011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x75);
+        Instruction_Byte_MSB_First(0x53);
+        CSN_On();
+        //326
+        //['', '\n']
+        // MOSI:  MISO:
+        //327
+        //['', '\n']
+        // MOSI:  MISO:
+        //328
+        //['0xF6', '0x00\n']
+        // MOSI: F6 MISO: 00
+        //INITIAL COMMAND LINE
+        //329
+        //['0x71', '0x00\n']
+        // MOSI: 71 MISO: 00
+        // WRITE REGISTER: 0x76 'Nominal Carrier Frequency 1 ' WRITE VALUE= 113 0b1110001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x76);
+        Instruction_Byte_MSB_First(0x71);
+        CSN_On();
+        //330
+        //['', '\n']
+        // MOSI:  MISO:
+        //331
+        //['', '\n']
+        // MOSI:  MISO:
+        //332
+        //['0xF7', '0x00\n']
+        // MOSI: F7 MISO: 00
+        //INITIAL COMMAND LINE
+        //333
+        //['0xC0', '0x00\n']
+        // MOSI: C0 MISO: 00
+        // WRITE REGISTER: 0x77 'Nominal Carrier Frequency 0' WRITE VALUE= 192 0b11000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x77);
+        Instruction_Byte_MSB_First(0xc0);
+        CSN_On();
+        //334
+        //['', '\n']
+        // MOSI:  MISO:
+        //335
+        //['', '\n']
+        // MOSI:  MISO:
+        //336
+        //['0xFA', '0x00\n']
+        // MOSI: FA MISO: 00
+        //INITIAL COMMAND LINE
+        //337
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x7a 'Frequency Hopping Step Size' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7a);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //338
+        //['', '\n']
+        // MOSI:  MISO:
+        //339
+        //['', '\n']
+        // MOSI:  MISO:
+        //340
+        //['0xB4', '0x00\n']
+        // MOSI: B4 MISO: 00
+        //INITIAL COMMAND LINE
+        //341
+        //['0x08', '0x00\n']
+        // MOSI: 08 MISO: 00
+        // WRITE REGISTER: 0x34 'Preamble Length' WRITE VALUE= 8 0b1000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x34);
+        Instruction_Byte_MSB_First(0x8);
+        CSN_On();
+        //342
+        //['', '\n']
+        // MOSI:  MISO:
+        //343
+        //['', '\n']
+        // MOSI:  MISO:
+        //344
+        //['0xED', '0x00\n']
+        // MOSI: ED MISO: 00
+        //INITIAL COMMAND LINE
+        //345
+        //['0x1F', '0x00\n']
+        // MOSI: 1F MISO: 00
+        // WRITE REGISTER: 0x6d 'TX Power ' WRITE VALUE= 31 0b11111
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6d);
+        Instruction_Byte_MSB_First(0x1f);
+        CSN_On();
+        //346
+        //['', '\n']
+        // MOSI:  MISO:
+        //347
+        //['', '\n']
+        // MOSI:  MISO:
+        //348
+        //['0x06', '0x00\n']
+        // MOSI: 06 MISO: 00
+        //INITIAL COMMAND LINE
+        //349
+        //['0xFF', '0x04\n']
+        // MOSI: FF MISO: 04
+        // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 4 0b100
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+        Dummy_Byte_MSB_First(0xFF,0x6);
+        CSN_On();
+        //350
+        //['', '\n']
+        // MOSI:  MISO:
+        //351
+        //['', '\n']
+        // MOSI:  MISO:
+        //352
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //353
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //354
+        //['', '\n']
+        // MOSI:  MISO:
+        //355
+        //['', '\n']
+        // MOSI:  MISO:
+        //356
+        //['0x07', '0x00\n']
+        // MOSI: 07 MISO: 00
+        //INITIAL COMMAND LINE
+        //357
+        //['0xFF', '0x41\n']
+        // MOSI: FF MISO: 41
+        // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 65 0b1000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+        Dummy_Byte_MSB_First(0xFF,0x7);
+        CSN_On();
+        //358
+        //['', '\n']
+        // MOSI:  MISO:
+        //359
+        //['', '\n']
+        // MOSI:  MISO:
+        //360
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //361
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //362
+        //['', '\n']
+        // MOSI:  MISO:
+        //363
+        //['', '\n']
+        // MOSI:  MISO:
+        //364
+        //['0xED', '0x00\n']
+        // MOSI: ED MISO: 00
+        //INITIAL COMMAND LINE
+        //365
+        //['0x1C', '0x00\n']
+        // MOSI: 1C MISO: 00
+        // WRITE REGISTER: 0x6d 'TX Power ' WRITE VALUE= 28 0b11100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6d);
+        Instruction_Byte_MSB_First(0x1c);
+        CSN_On();
+        //366
+        //['', '\n']
+        // MOSI:  MISO:
+        //367
+        //['', '\n']
+        // MOSI:  MISO:
+        //368
+        //['0xBA', '0x00\n']
+        // MOSI: BA MISO: 00
+        //INITIAL COMMAND LINE
+        //369
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3a 'Transmit Header 3' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3a);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //370
+        //['', '\n']
+        // MOSI:  MISO:
+        //371
+        //['', '\n']
+        // MOSI:  MISO:
+        //372
+        //['0xBB', '0x00\n']
+        // MOSI: BB MISO: 00
+        //INITIAL COMMAND LINE
+        //373
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3b 'Transmit Header 2' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3b);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //374
+        //['', '\n']
+        // MOSI:  MISO:
+        //375
+        //['', '\n']
+        // MOSI:  MISO:
+        //376
+        //['0xBC', '0x00\n']
+        // MOSI: BC MISO: 00
+        //INITIAL COMMAND LINE
+        //377
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3c 'Transmit Header 1' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3c);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //378
+        //['', '\n']
+        // MOSI:  MISO:
+        //379
+        //['', '\n']
+        // MOSI:  MISO:
+        //380
+        //['', '\n']
+        // MOSI:  MISO:
+        //381
+        //['', '\n']
+        // MOSI:  MISO:
+        //382
+        //['', '\n']
+        // MOSI:  MISO:
+        //383
+        //['', '\n']
+        // MOSI:  MISO:
+        //384
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //385
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //386
+        //['', '\n']
+        // MOSI:  MISO:
+        //387
+        //['', '\n']
+        // MOSI:  MISO:
+        //388
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //389
+        //['0xFF', '0x03\n']
+        // MOSI: FF MISO: 03
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 3 0b11
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //390
+        //['', '\n']
+        // MOSI:  MISO:
+        //391
+        //['', '\n']
+        // MOSI:  MISO:
+        //392
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //393
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //394
+        //['', '\n']
+        // MOSI:  MISO:
+        //395
+        //['', '\n']
+        // MOSI:  MISO:
+        //396
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //397
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //398
+        //['', '\n']
+        // MOSI:  MISO:
+        //399
+        //['', '\n']
+        // MOSI:  MISO:
+        //400
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //401
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //402
+        //['', '\n']
+        // MOSI:  MISO:
+        //403
+        //['', '\n']
+        // MOSI:  MISO:
+        //404
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //405
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //406
+        //['', '\n']
+        // MOSI:  MISO:
+        //407
+        //['', '\n']
+        // MOSI:  MISO:
+        //408
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //409
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //410
+        //['', '\n']
+        // MOSI:  MISO:
+        //411
+        //['', '\n']
+        // MOSI:  MISO:
+        //412
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //413
+        //['0x02', '0x00\n']
+        // MOSI: 02 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x2);
+        CSN_On();
+        //414
+        //['', '\n']
+        // MOSI:  MISO:
+        //415
+        //['', '\n']
+        // MOSI:  MISO:
+        //416
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //417
+        //['0x81', '0x00\n']
+        // MOSI: 81 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 129 0b10000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x81);
+        CSN_On();
+        //418
+        //['', '\n']
+        // MOSI:  MISO:
+        //419
+        //['', '\n']
+        // MOSI:  MISO:
+        //420
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //421
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //422
+        //['', '\n']
+        // MOSI:  MISO:
+        //423
+        //['', '\n']
+        // MOSI:  MISO:
+        //424
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //425
+        //['0xFF', '0x01\n']
+        // MOSI: FF MISO: 01
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //426
+        //['', '\n']
+        // MOSI:  MISO:
+        //427
+        //['', '\n']
+        // MOSI:  MISO:
+        //428
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //429
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //430
+        //['', '\n']
+        // MOSI:  MISO:
+        //431
+        //['', '\n']
+        // MOSI:  MISO:
+        //432
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //433
+        //['0x06', '0x00\n']
+        // MOSI: 06 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 6 0b110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x6);
+        CSN_On();
+        //434
+        //['', '\n']
+        // MOSI:  MISO:
+        //435
+        //['', '\n']
+        // MOSI:  MISO:
+        //436
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //437
+        //['0x41', '0x00\n']
+        // MOSI: 41 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 65 0b1000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x41);
+        CSN_On();
+        //438
+        //['', '\n']
+        // MOSI:  MISO:
+        //439
+        //['', '\n']
+        // MOSI:  MISO:
+        //440
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //441
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //442
+        //['', '\n']
+        // MOSI:  MISO:
+        //443
+        //['', '\n']
+        // MOSI:  MISO:
+        //444
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //445
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //446
+        //['', '\n']
+        // MOSI:  MISO:
+        //447
+        //['', '\n']
+        // MOSI:  MISO:
+        //448
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //449
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //450
+        //['', '\n']
+        // MOSI:  MISO:
+        //451
+        //['', '\n']
+        // MOSI:  MISO:
+        //452
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //453
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 4 0b100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x4);
+        CSN_On();
+        //454
+        //['', '\n']
+        // MOSI:  MISO:
+        //455
+        //['', '\n']
+        // MOSI:  MISO:
+        //456
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //457
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //458
+        //['', '\n']
+        // MOSI:  MISO:
+        //459
+        //['', '\n']
+        // MOSI:  MISO:
+        //460
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //461
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //462
+        //['', '\n']
+        // MOSI:  MISO:
+        //463
+        //['', '\n']
+        // MOSI:  MISO:
+        //464
+        //['0xB3', '0x00\n']
+        // MOSI: B3 MISO: 00
+        //INITIAL COMMAND LINE
+        //465
+        //['0x42', '0x00\n']
+        // MOSI: 42 MISO: 00
+        // WRITE REGISTER: 0x33 'Header Control 2' WRITE VALUE= 66 0b1000010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x33);
+        Instruction_Byte_MSB_First(0x42);
+        CSN_On();
+        //466
+        //['', '\n']
+        // MOSI:  MISO:
+        //467
+        //['', '\n']
+        // MOSI:  MISO:
+        //468
+        //['0xB2', '0x00\n']
+        // MOSI: B2 MISO: 00
+        //INITIAL COMMAND LINE
+        //469
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x32 'Header Control 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x32);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //470
+        //['', '\n']
+        // MOSI:  MISO:
+        //471
+        //['', '\n']
+        // MOSI:  MISO:
+        //472
+        //['0xB6', '0x00\n']
+        // MOSI: B6 MISO: 00
+        //INITIAL COMMAND LINE
+        //473
+        //['0x2D', '0x00\n']
+        // MOSI: 2D MISO: 00
+        // WRITE REGISTER: 0x36 'Sync Word 3' WRITE VALUE= 45 0b101101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x36);
+        Instruction_Byte_MSB_First(0x2d);
+        CSN_On();
+        //474
+        //['', '\n']
+        // MOSI:  MISO:
+        //475
+        //['', '\n']
+        // MOSI:  MISO:
+        //476
+        //['0xB7', '0x00\n']
+        // MOSI: B7 MISO: 00
+        //INITIAL COMMAND LINE
+        //477
+        //['0xD4', '0x00\n']
+        // MOSI: D4 MISO: 00
+        // WRITE REGISTER: 0x37 'Sync Word 2' WRITE VALUE= 212 0b11010100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x37);
+        Instruction_Byte_MSB_First(0xd4);
+        CSN_On();
+        //478
+        //['', '\n']
+        // MOSI:  MISO:
+        //479
+        //['', '\n']
+        // MOSI:  MISO:
+        //480
+        //['0x9C', '0x00\n']
+        // MOSI: 9C MISO: 00
+        //INITIAL COMMAND LINE
+        //481
+        //['0xAB', '0x00\n']
+        // MOSI: AB MISO: 00
+        // WRITE REGISTER: 0x1c '"IF Filter' WRITE VALUE= 171 0b10101011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1c);
+        Instruction_Byte_MSB_First(0xab);
+        CSN_On();
+        //482
+        //['', '\n']
+        // MOSI:  MISO:
+        //483
+        //['', '\n']
+        // MOSI:  MISO:
+        //484
+        //['0xA0', '0x00\n']
+        // MOSI: A0 MISO: 00
+        //INITIAL COMMAND LINE
+        //485
+        //['0x71', '0x00\n']
+        // MOSI: 71 MISO: 00
+        // WRITE REGISTER: 0x20 'Clock Recovery Oversampling Ratio' WRITE VALUE= 113 0b1110001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x20);
+        Instruction_Byte_MSB_First(0x71);
+        CSN_On();
+        //486
+        //['', '\n']
+        // MOSI:  MISO:
+        //487
+        //['', '\n']
+        // MOSI:  MISO:
+        //488
+        //['0xA1', '0x00\n']
+        // MOSI: A1 MISO: 00
+        //INITIAL COMMAND LINE
+        //489
+        //['0x40', '0x00\n']
+        // MOSI: 40 MISO: 00
+        // WRITE REGISTER: 0x21 'Clock Recovery Offset 2' WRITE VALUE= 64 0b1000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x21);
+        Instruction_Byte_MSB_First(0x40);
+        CSN_On();
+        //490
+        //['', '\n']
+        // MOSI:  MISO:
+        //491
+        //['', '\n']
+        // MOSI:  MISO:
+        //492
+        //['0xA2', '0x00\n']
+        // MOSI: A2 MISO: 00
+        //INITIAL COMMAND LINE
+        //493
+        //['0x34', '0x00\n']
+        // MOSI: 34 MISO: 00
+        // WRITE REGISTER: 0x22 'Clock Recovery Offset 1' WRITE VALUE= 52 0b110100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x22);
+        Instruction_Byte_MSB_First(0x34);
+        CSN_On();
+        //494
+        //['', '\n']
+        // MOSI:  MISO:
+        //495
+        //['', '\n']
+        // MOSI:  MISO:
+        //496
+        //['0xA3', '0x00\n']
+        // MOSI: A3 MISO: 00
+        //INITIAL COMMAND LINE
+        //497
+        //['0x6E', '0x00\n']
+        // MOSI: 6E MISO: 00
+        // WRITE REGISTER: 0x23 'Clock Recovery Offset 0' WRITE VALUE= 110 0b1101110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x23);
+        Instruction_Byte_MSB_First(0x6e);
+        CSN_On();
+        //498
+        //['', '\n']
+        // MOSI:  MISO:
+        //499
+        //['', '\n']
+        // MOSI:  MISO:
+        //500
+        //['0xA4', '0x00\n']
+        // MOSI: A4 MISO: 00
+        //INITIAL COMMAND LINE
+        //501
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x24 'Clock Recovery Timing Loop Gain 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x24);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //502
+        //['', '\n']
+        // MOSI:  MISO:
+        //503
+        //['', '\n']
+        // MOSI:  MISO:
+        //504
+        //['0xA5', '0x00\n']
+        // MOSI: A5 MISO: 00
+        //INITIAL COMMAND LINE
+        //505
+        //['0x0C', '0x00\n']
+        // MOSI: 0C MISO: 00
+        // WRITE REGISTER: 0x25 'Clock Recovery Timing Loop Gain 0' WRITE VALUE= 12 0b1100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x25);
+        Instruction_Byte_MSB_First(0xc);
+        CSN_On();
+        //506
+        //['', '\n']
+        // MOSI:  MISO:
+        //507
+        //['', '\n']
+        // MOSI:  MISO:
+        //508
+        //['0xEE', '0x00\n']
+        // MOSI: EE MISO: 00
+        //INITIAL COMMAND LINE
+        //509
+        //['0x27', '0x00\n']
+        // MOSI: 27 MISO: 00
+        // WRITE REGISTER: 0x6e 'TX Data Rate 1' WRITE VALUE= 39 0b100111
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6e);
+        Instruction_Byte_MSB_First(0x27);
+        CSN_On();
+        //510
+        //['', '\n']
+        // MOSI:  MISO:
+        //511
+        //['', '\n']
+        // MOSI:  MISO:
+        //512
+        //['0xEF', '0x00\n']
+        // MOSI: EF MISO: 00
+        //INITIAL COMMAND LINE
+        //513
+        //['0x52', '0x00\n']
+        // MOSI: 52 MISO: 00
+        // WRITE REGISTER: 0x6f 'TX Data Rate 0' WRITE VALUE= 82 0b1010010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6f);
+        Instruction_Byte_MSB_First(0x52);
+        CSN_On();
+        //514
+        //['', '\n']
+        // MOSI:  MISO:
+        //515
+        //['', '\n']
+        // MOSI:  MISO:
+        //516
+        //['0xF0', '0x00\n']
+        // MOSI: F0 MISO: 00
+        //INITIAL COMMAND LINE
+        //517
+        //['0x24', '0x00\n']
+        // MOSI: 24 MISO: 00
+        // WRITE REGISTER: 0x70 'Modulation Mode Control 1' WRITE VALUE= 36 0b100100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x70);
+        Instruction_Byte_MSB_First(0x24);
+        CSN_On();
+        //518
+        //['', '\n']
+        // MOSI:  MISO:
+        //519
+        //['', '\n']
+        // MOSI:  MISO:
+        //520
+        //['0xF2', '0x00\n']
+        // MOSI: F2 MISO: 00
+        //INITIAL COMMAND LINE
+        //521
+        //['0x50', '0x00\n']
+        // MOSI: 50 MISO: 00
+        // WRITE REGISTER: 0x72 'Frequency Deviation ' WRITE VALUE= 80 0b1010000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x72);
+        Instruction_Byte_MSB_First(0x50);
+        CSN_On();
+        //522
+        //['', '\n']
+        // MOSI:  MISO:
+        //523
+        //['', '\n']
+        // MOSI:  MISO:
+        //524
+        //['0x9D', '0x00\n']
+        // MOSI: 9D MISO: 00
+        //INITIAL COMMAND LINE
+        //525
+        //['0x44', '0x00\n']
+        // MOSI: 44 MISO: 00
+        // WRITE REGISTER: 0x1d 'AFC Loop Gearshift Override' WRITE VALUE= 68 0b1000100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1d);
+        Instruction_Byte_MSB_First(0x44);
+        CSN_On();
+        //526
+        //['', '\n']
+        // MOSI:  MISO:
+        //527
+        //['', '\n']
+        // MOSI:  MISO:
+        //528
+        //['0xAA', '0x00\n']
+        // MOSI: AA MISO: 00
+        //INITIAL COMMAND LINE
+        //529
+        //['0x2E', '0x00\n']
+        // MOSI: 2E MISO: 00
+        // WRITE REGISTER: 0x2a 'AFC Limiter' WRITE VALUE= 46 0b101110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x2a);
+        Instruction_Byte_MSB_First(0x2e);
+        CSN_On();
+        //530
+        //['', '\n']
+        // MOSI:  MISO:
+        //531
+        //['', '\n']
+        // MOSI:  MISO:
+        //532
+        //['0x9E', '0x00\n']
+        // MOSI: 9E MISO: 00
+        //INITIAL COMMAND LINE
+        //533
+        //['0x0A', '0x00\n']
+        // MOSI: 0A MISO: 00
+        // WRITE REGISTER: 0x1e 'AFC Timing Control' WRITE VALUE= 10 0b1010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1e);
+        Instruction_Byte_MSB_First(0xa);
+        CSN_On();
+        //534
+        //['', '\n']
+        // MOSI:  MISO:
+        //535
+        //['', '\n']
+        // MOSI:  MISO:
+        //536
+        //['0xB5', '0x00\n']
+        // MOSI: B5 MISO: 00
+        //INITIAL COMMAND LINE
+        //537
+        //['0x2A', '0x00\n']
+        // MOSI: 2A MISO: 00
+        // WRITE REGISTER: 0x35 'Preamble Detection Control' WRITE VALUE= 42 0b101010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x35);
+        Instruction_Byte_MSB_First(0x2a);
+        CSN_On();
+        //538
+        //['', '\n']
+        // MOSI:  MISO:
+        //539
+        //['', '\n']
+        // MOSI:  MISO:
+        //540
+        //['0xF5', '0x00\n']
+        // MOSI: F5 MISO: 00
+        //INITIAL COMMAND LINE
+        //541
+        //['0x53', '0x00\n']
+        // MOSI: 53 MISO: 00
+        // WRITE REGISTER: 0x75 'Frequency Band Select ' WRITE VALUE= 83 0b1010011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x75);
+        Instruction_Byte_MSB_First(0x53);
+        CSN_On();
+        //542
+        //['', '\n']
+        // MOSI:  MISO:
+        //543
+        //['', '\n']
+        // MOSI:  MISO:
+        //544
+        //['0xF6', '0x00\n']
+        // MOSI: F6 MISO: 00
+        //INITIAL COMMAND LINE
+        //545
+        //['0xA3', '0x00\n']
+        // MOSI: A3 MISO: 00
+        // WRITE REGISTER: 0x76 'Nominal Carrier Frequency 1 ' WRITE VALUE= 163 0b10100011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x76);
+        Instruction_Byte_MSB_First(0xa3);
+        CSN_On();
+        //546
+        //['', '\n']
+        // MOSI:  MISO:
+        //547
+        //['', '\n']
+        // MOSI:  MISO:
+        //548
+        //['0xF7', '0x00\n']
+        // MOSI: F7 MISO: 00
+        //INITIAL COMMAND LINE
+        //549
+        //['0xC0', '0x00\n']
+        // MOSI: C0 MISO: 00
+        // WRITE REGISTER: 0x77 'Nominal Carrier Frequency 0' WRITE VALUE= 192 0b11000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x77);
+        Instruction_Byte_MSB_First(0xc0);
+        CSN_On();
+        //550
+        //['', '\n']
+        // MOSI:  MISO:
+        //551
+        //['', '\n']
+        // MOSI:  MISO:
+        //552
+        //['0xFA', '0x00\n']
+        // MOSI: FA MISO: 00
+        //INITIAL COMMAND LINE
+        //553
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x7a 'Frequency Hopping Step Size' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7a);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //554
+        //['', '\n']
+        // MOSI:  MISO:
+        //555
+        //['', '\n']
+        // MOSI:  MISO:
+        //556
+        //['0xB4', '0x00\n']
+        // MOSI: B4 MISO: 00
+        //INITIAL COMMAND LINE
+        //557
+        //['0x08', '0x00\n']
+        // MOSI: 08 MISO: 00
+        // WRITE REGISTER: 0x34 'Preamble Length' WRITE VALUE= 8 0b1000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x34);
+        Instruction_Byte_MSB_First(0x8);
+        CSN_On();
+        //558
+        //['', '\n']
+        // MOSI:  MISO:
+        //559
+        //['', '\n']
+        // MOSI:  MISO:
+        //560
+        //['0x8B', '0x00\n']
+        // MOSI: 8B MISO: 00
+        //INITIAL COMMAND LINE
+        //561
+        //['0xD4', '0x00\n']
+        // MOSI: D4 MISO: 00
+        // WRITE REGISTER: 0xb 'GPIO0 Configuration' WRITE VALUE= 212 0b11010100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0xb);
+        Instruction_Byte_MSB_First(0xd4);
+        CSN_On();
+        //562
+        //['', '\n']
+        // MOSI:  MISO:
+        //563
+        //['', '\n']
+        // MOSI:  MISO:
+        //564
+        //['0x8C', '0x00\n']
+        // MOSI: 8C MISO: 00
+        //INITIAL COMMAND LINE
+        //565
+        //['0xD2', '0x00\n']
+        // MOSI: D2 MISO: 00
+        // WRITE REGISTER: 0xc 'GPIO1 Configuration' WRITE VALUE= 210 0b11010010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0xc);
+        Instruction_Byte_MSB_First(0xd2);
+        CSN_On();
+        //566
+        //['', '\n']
+        // MOSI:  MISO:
+        //567
+        //['', '\n']
+        // MOSI:  MISO:
+        //568
+        //['0x8D', '0x00\n']
+        // MOSI: 8D MISO: 00
+        //INITIAL COMMAND LINE
+        //569
+        //['0xD5', '0x00\n']
+        // MOSI: D5 MISO: 00
+        // WRITE REGISTER: 0xd 'GPIO2 Configuration' WRITE VALUE= 213 0b11010101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0xd);
+        Instruction_Byte_MSB_First(0xd5);
+        CSN_On();
+        //570
+        //['', '\n']
+        // MOSI:  MISO:
+        //571
+        //['', '\n']
+        // MOSI:  MISO:
+        //572
+        //['0xB0', '0x00\n']
+        // MOSI: B0 MISO: 00
+        //INITIAL COMMAND LINE
+        //573
+        //['0x8D', '0x00\n']
+        // MOSI: 8D MISO: 00
+        // WRITE REGISTER: 0x30 'Data Access Control' WRITE VALUE= 141 0b10001101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x30);
+        Instruction_Byte_MSB_First(0x8d);
+        CSN_On();
+        //574
+        //['', '\n']
+        // MOSI:  MISO:
+        //575
+        //['', '\n']
+        // MOSI:  MISO:
+        //576
+        //['0xF1', '0x00\n']
+        // MOSI: F1 MISO: 00
+        //INITIAL COMMAND LINE
+        //577
+        //['0x63', '0x00\n']
+        // MOSI: 63 MISO: 00
+        // WRITE REGISTER: 0x71 'Modulation Mode Control 2' WRITE VALUE= 99 0b1100011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x71);
+        Instruction_Byte_MSB_First(0x63);
+        CSN_On();
+        //578
+        //['', '\n']
+        // MOSI:  MISO:
+        //579
+        //['', '\n']
+        // MOSI:  MISO:
+        //580
+        //['0x9F', '0x00\n']
+        // MOSI: 9F MISO: 00
+        //INITIAL COMMAND LINE
+        //581
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        // WRITE REGISTER: 0x1f 'Clock Recovery Gearshift Override' WRITE VALUE= 3 0b11
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1f);
+        Instruction_Byte_MSB_First(0x3);
+        CSN_On();
+        //582
+        //['', '\n']
+        // MOSI:  MISO:
+        //583
+        //['', '\n']
+        // MOSI:  MISO:
+        //584
+        //['0xD8', '0x00\n']
+        // MOSI: D8 MISO: 00
+        //INITIAL COMMAND LINE
+        //585
+        //['0x80', '0x00\n']
+        // MOSI: 80 MISO: 00
+        // WRITE REGISTER: 0x58 '' WRITE VALUE= 128 0b10000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x58);
+        Instruction_Byte_MSB_First(0x80);
+        CSN_On();
+        //586
+        //['', '\n']
+        // MOSI:  MISO:
+        //587
+        //['', '\n']
+        // MOSI:  MISO:
+        //588
+        //['0xD1', '0x00\n']
+        // MOSI: D1 MISO: 00
+        //INITIAL COMMAND LINE
+        //589
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x51 '' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x51);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //590
+        //['', '\n']
+        // MOSI:  MISO:
+        //591
+        //['', '\n']
+        // MOSI:  MISO:
+        //592
+        //['0xD0', '0x00\n']
+        // MOSI: D0 MISO: 00
+        //INITIAL COMMAND LINE
+        //593
+        //['0x0B', '0x00\n']
+        // MOSI: 0B MISO: 00
+        // WRITE REGISTER: 0x50 '' WRITE VALUE= 11 0b1011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x50);
+        Instruction_Byte_MSB_First(0xb);
+        CSN_On();
+        //594
+        //['', '\n']
+        // MOSI:  MISO:
+        //595
+        //['', '\n']
+        // MOSI:  MISO:
+        //596
+        //['0xE9', '0x00\n']
+        // MOSI: E9 MISO: 00
+        //INITIAL COMMAND LINE
+        //597
+        //['0x60', '0x00\n']
+        // MOSI: 60 MISO: 00
+        // WRITE REGISTER: 0x69 'AGC Override 1' WRITE VALUE= 96 0b1100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x69);
+        Instruction_Byte_MSB_First(0x60);
+        CSN_On();
+        //598
+        //['', '\n']
+        // MOSI:  MISO:
+        //599
+        //['', '\n']
+        // MOSI:  MISO:
+        //600
+        //['0x89', '0x00\n']
+        // MOSI: 89 MISO: 00
+        //INITIAL COMMAND LINE
+        //601
+        //['0x61', '0x00\n']
+        // MOSI: 61 MISO: 00
+        // WRITE REGISTER: 0x9 'Crystal Oscillator Load Capacitance' WRITE VALUE= 97 0b1100001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x9);
+        Instruction_Byte_MSB_First(0x61);
+        CSN_On();
+        //602
+        //['', '\n']
+        // MOSI:  MISO:
+        //603
+        //['', '\n']
+        // MOSI:  MISO:
+        //604
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //605
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //606
+        //['', '\n']
+        // MOSI:  MISO:
+        //607
+        //['', '\n']
+        // MOSI:  MISO:
+        //608
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //609
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //610
+        //['', '\n']
+        // MOSI:  MISO:
+        //611
+        //['', '\n']
+        // MOSI:  MISO:
+        //612
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //613
+        //['0x06', '0x00\n']
+        // MOSI: 06 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 6 0b110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x6);
+        CSN_On();
+        //614
+        //['', '\n']
+        // MOSI:  MISO:
+        //615
+        //['', '\n']
+        // MOSI:  MISO:
+        //616
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //617
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //618
+        //['', '\n']
+        // MOSI:  MISO:
+        //619
+        //['', '\n']
+        // MOSI:  MISO:
+        //620
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //621
+        //['0xFF', '0x00\n']
+        // MOSI: FF MISO: 00
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //622
+        //['', '\n']
+        // MOSI:  MISO:
+        //623
+        //['', '\n']
+        // MOSI:  MISO:
+        //624
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //625
+        //['0x41', '0x00\n']
+        // MOSI: 41 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 65 0b1000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x41);
+        CSN_On();
+        //626
+        //['', '\n']
+        // MOSI:  MISO:
+        //627
+        //['', '\n']
+        // MOSI:  MISO:
+        //628
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //629
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //630
+        //['', '\n']
+        // MOSI:  MISO:
+        //631
+        //['', '\n']
+        // MOSI:  MISO:
+        //632
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //633
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //634
+        //['', '\n']
+        // MOSI:  MISO:
+        //635
+        //['', '\n']
+        // MOSI:  MISO:
+        //636
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //637
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //638
+        //['', '\n']
+        // MOSI:  MISO:
+        //639
+        //['', '\n']
+        // MOSI:  MISO:
+        //640
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //641
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 4 0b100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x4);
+        CSN_On();
+        //642
+        //['', '\n']
+        // MOSI:  MISO:
+        //643
+        //['', '\n']
+        // MOSI:  MISO:
+        //644
+        //['0xB3', '0x00\n']
+        // MOSI: B3 MISO: 00
+        //INITIAL COMMAND LINE
+        //645
+        //['0x42', '0x00\n']
+        // MOSI: 42 MISO: 00
+        // WRITE REGISTER: 0x33 'Header Control 2' WRITE VALUE= 66 0b1000010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x33);
+        Instruction_Byte_MSB_First(0x42);
+        CSN_On();
+        //646
+        //['', '\n']
+        // MOSI:  MISO:
+        //647
+        //['', '\n']
+        // MOSI:  MISO:
+        //648
+        //['0x9C', '0x00\n']
+        // MOSI: 9C MISO: 00
+        //INITIAL COMMAND LINE
+        //649
+        //['0xAB', '0x00\n']
+        // MOSI: AB MISO: 00
+        // WRITE REGISTER: 0x1c '"IF Filter' WRITE VALUE= 171 0b10101011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1c);
+        Instruction_Byte_MSB_First(0xab);
+        CSN_On();
+        //650
+        //['', '\n']
+        // MOSI:  MISO:
+        //651
+        //['', '\n']
+        // MOSI:  MISO:
+        //652
+        //['0xA0', '0x00\n']
+        // MOSI: A0 MISO: 00
+        //INITIAL COMMAND LINE
+        //653
+        //['0x71', '0x00\n']
+        // MOSI: 71 MISO: 00
+        // WRITE REGISTER: 0x20 'Clock Recovery Oversampling Ratio' WRITE VALUE= 113 0b1110001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x20);
+        Instruction_Byte_MSB_First(0x71);
+        CSN_On();
+        //654
+        //['', '\n']
+        // MOSI:  MISO:
+        //655
+        //['', '\n']
+        // MOSI:  MISO:
+        //656
+        //['0xA1', '0x00\n']
+        // MOSI: A1 MISO: 00
+        //INITIAL COMMAND LINE
+        //657
+        //['0x40', '0x00\n']
+        // MOSI: 40 MISO: 00
+        // WRITE REGISTER: 0x21 'Clock Recovery Offset 2' WRITE VALUE= 64 0b1000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x21);
+        Instruction_Byte_MSB_First(0x40);
+        CSN_On();
+        //658
+        //['', '\n']
+        // MOSI:  MISO:
+        //659
+        //['', '\n']
+        // MOSI:  MISO:
+        //660
+        //['0xA2', '0x00\n']
+        // MOSI: A2 MISO: 00
+        //INITIAL COMMAND LINE
+        //661
+        //['0x34', '0x00\n']
+        // MOSI: 34 MISO: 00
+        // WRITE REGISTER: 0x22 'Clock Recovery Offset 1' WRITE VALUE= 52 0b110100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x22);
+        Instruction_Byte_MSB_First(0x34);
+        CSN_On();
+        //662
+        //['', '\n']
+        // MOSI:  MISO:
+        //663
+        //['', '\n']
+        // MOSI:  MISO:
+        //664
+        //['0xA3', '0x00\n']
+        // MOSI: A3 MISO: 00
+        //INITIAL COMMAND LINE
+        //665
+        //['0x6E', '0x00\n']
+        // MOSI: 6E MISO: 00
+        // WRITE REGISTER: 0x23 'Clock Recovery Offset 0' WRITE VALUE= 110 0b1101110
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x23);
+        Instruction_Byte_MSB_First(0x6e);
+        CSN_On();
+        //666
+        //['', '\n']
+        // MOSI:  MISO:
+        //667
+        //['', '\n']
+        // MOSI:  MISO:
+        //668
+        //['0xA4', '0x00\n']
+        // MOSI: A4 MISO: 00
+        //INITIAL COMMAND LINE
+        //669
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x24 'Clock Recovery Timing Loop Gain 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x24);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //670
+        //['', '\n']
+        // MOSI:  MISO:
+        //671
+        //['', '\n']
+        // MOSI:  MISO:
+        //672
+        //['0xA5', '0x00\n']
+        // MOSI: A5 MISO: 00
+        //INITIAL COMMAND LINE
+        //673
+        //['0x0C', '0x00\n']
+        // MOSI: 0C MISO: 00
+        // WRITE REGISTER: 0x25 'Clock Recovery Timing Loop Gain 0' WRITE VALUE= 12 0b1100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x25);
+        Instruction_Byte_MSB_First(0xc);
+        CSN_On();
+        //674
+        //['', '\n']
+        // MOSI:  MISO:
+        //675
+        //['', '\n']
+        // MOSI:  MISO:
+        //676
+        //['0xEE', '0x00\n']
+        // MOSI: EE MISO: 00
+        //INITIAL COMMAND LINE
+        //677
+        //['0x27', '0x00\n']
+        // MOSI: 27 MISO: 00
+        // WRITE REGISTER: 0x6e 'TX Data Rate 1' WRITE VALUE= 39 0b100111
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6e);
+        Instruction_Byte_MSB_First(0x27);
+        CSN_On();
+        //678
+        //['', '\n']
+        // MOSI:  MISO:
+        //679
+        //['', '\n']
+        // MOSI:  MISO:
+        //680
+        //['0xEF', '0x00\n']
+        // MOSI: EF MISO: 00
+        //INITIAL COMMAND LINE
+        //681
+        //['0x52', '0x00\n']
+        // MOSI: 52 MISO: 00
+        // WRITE REGISTER: 0x6f 'TX Data Rate 0' WRITE VALUE= 82 0b1010010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6f);
+        Instruction_Byte_MSB_First(0x52);
+        CSN_On();
+        //682
+        //['', '\n']
+        // MOSI:  MISO:
+        //683
+        //['', '\n']
+        // MOSI:  MISO:
+        //684
+        //['0xF0', '0x00\n']
+        // MOSI: F0 MISO: 00
+        //INITIAL COMMAND LINE
+        //685
+        //['0x24', '0x00\n']
+        // MOSI: 24 MISO: 00
+        // WRITE REGISTER: 0x70 'Modulation Mode Control 1' WRITE VALUE= 36 0b100100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x70);
+        Instruction_Byte_MSB_First(0x24);
+        CSN_On();
+        //686
+        //['', '\n']
+        // MOSI:  MISO:
+        //687
+        //['', '\n']
+        // MOSI:  MISO:
+        //688
+        //['0xF2', '0x00\n']
+        // MOSI: F2 MISO: 00
+        //INITIAL COMMAND LINE
+        //689
+        //['0x50', '0x00\n']
+        // MOSI: 50 MISO: 00
+        // WRITE REGISTER: 0x72 'Frequency Deviation ' WRITE VALUE= 80 0b1010000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x72);
+        Instruction_Byte_MSB_First(0x50);
+        CSN_On();
+        //690
+        //['', '\n']
+        // MOSI:  MISO:
+        //691
+        //['', '\n']
+        // MOSI:  MISO:
+        //692
+        //['0x9D', '0x00\n']
+        // MOSI: 9D MISO: 00
+        //INITIAL COMMAND LINE
+        //693
+        //['0x44', '0x00\n']
+        // MOSI: 44 MISO: 00
+        // WRITE REGISTER: 0x1d 'AFC Loop Gearshift Override' WRITE VALUE= 68 0b1000100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1d);
+        Instruction_Byte_MSB_First(0x44);
+        CSN_On();
+        //694
+        //['', '\n']
+        // MOSI:  MISO:
+        //695
+        //['', '\n']
+        // MOSI:  MISO:
+        //696
+        //['0xAA', '0x00\n']
+        // MOSI: AA MISO: 00
+        //INITIAL COMMAND LINE
+        //697
+        //['0x2D', '0x00\n']
+        // MOSI: 2D MISO: 00
+        // WRITE REGISTER: 0x2a 'AFC Limiter' WRITE VALUE= 45 0b101101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x2a);
+        Instruction_Byte_MSB_First(0x2d);
+        CSN_On();
+        //698
+        //['', '\n']
+        // MOSI:  MISO:
+        //699
+        //['', '\n']
+        // MOSI:  MISO:
+        //700
+        //['0x9E', '0x00\n']
+        // MOSI: 9E MISO: 00
+        //INITIAL COMMAND LINE
+        //701
+        //['0x0A', '0x00\n']
+        // MOSI: 0A MISO: 00
+        // WRITE REGISTER: 0x1e 'AFC Timing Control' WRITE VALUE= 10 0b1010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x1e);
+        Instruction_Byte_MSB_First(0xa);
+        CSN_On();
+        //702
+        //['', '\n']
+        // MOSI:  MISO:
+        //703
+        //['', '\n']
+        // MOSI:  MISO:
+        //704
+        //['0xB5', '0x00\n']
+        // MOSI: B5 MISO: 00
+        //INITIAL COMMAND LINE
+        //705
+        //['0x2A', '0x00\n']
+        // MOSI: 2A MISO: 00
+        // WRITE REGISTER: 0x35 'Preamble Detection Control' WRITE VALUE= 42 0b101010
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x35);
+        Instruction_Byte_MSB_First(0x2a);
+        CSN_On();
+        //706
+        //['', '\n']
+        // MOSI:  MISO:
+        //707
+        //['', '\n']
+        // MOSI:  MISO:
+        //708
+        //['0xF5', '0x00\n']
+        // MOSI: F5 MISO: 00
+        //INITIAL COMMAND LINE
+        //709
+        //['0x53', '0x00\n']
+        // MOSI: 53 MISO: 00
+        // WRITE REGISTER: 0x75 'Frequency Band Select ' WRITE VALUE= 83 0b1010011
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x75);
+        Instruction_Byte_MSB_First(0x53);
+        CSN_On();
+        //710
+        //['', '\n']
+        // MOSI:  MISO:
+        //711
+        //['', '\n']
+        // MOSI:  MISO:
+        //712
+        //['0xF6', '0x00\n']
+        // MOSI: F6 MISO: 00
+        //INITIAL COMMAND LINE
+        //713
+        //['0x71', '0x00\n']
+        // MOSI: 71 MISO: 00
+        // WRITE REGISTER: 0x76 'Nominal Carrier Frequency 1 ' WRITE VALUE= 113 0b1110001
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x76);
+        Instruction_Byte_MSB_First(0x71);
+        CSN_On();
+        //714
+        //['', '\n']
+        // MOSI:  MISO:
+        //715
+        //['', '\n']
+        // MOSI:  MISO:
+        //716
+        //['0xF7', '0x00\n']
+        // MOSI: F7 MISO: 00
+        //INITIAL COMMAND LINE
+        //717
+        //['0xC0', '0x00\n']
+        // MOSI: C0 MISO: 00
+        // WRITE REGISTER: 0x77 'Nominal Carrier Frequency 0' WRITE VALUE= 192 0b11000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x77);
+        Instruction_Byte_MSB_First(0xc0);
+        CSN_On();
+        //718
+        //['', '\n']
+        // MOSI:  MISO:
+        //719
+        //['', '\n']
+        // MOSI:  MISO:
+        //720
+        //['0xFA', '0x00\n']
+        // MOSI: FA MISO: 00
+        //INITIAL COMMAND LINE
+        //721
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x7a 'Frequency Hopping Step Size' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7a);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //722
+        //['', '\n']
+        // MOSI:  MISO:
+        //723
+        //['', '\n']
+        // MOSI:  MISO:
+        //724
+        //['0xB4', '0x00\n']
+        // MOSI: B4 MISO: 00
+        //INITIAL COMMAND LINE
+        //725
+        //['0x08', '0x00\n']
+        // MOSI: 08 MISO: 00
+        // WRITE REGISTER: 0x34 'Preamble Length' WRITE VALUE= 8 0b1000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x34);
+        Instruction_Byte_MSB_First(0x8);
+        CSN_On();
+        //726
+        //['', '\n']
+        // MOSI:  MISO:
+        //727
+        //['', '\n']
+        // MOSI:  MISO:
+        //728
+        //['0xED', '0x00\n']
+        // MOSI: ED MISO: 00
+        //INITIAL COMMAND LINE
+        //729
+        //['0x1F', '0x00\n']
+        // MOSI: 1F MISO: 00
+        // WRITE REGISTER: 0x6d 'TX Power ' WRITE VALUE= 31 0b11111
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6d);
+        Instruction_Byte_MSB_First(0x1f);
+        CSN_On();
+        //730
+        //['', '\n']
+        // MOSI:  MISO:
+        //731
+        //['', '\n']
+        // MOSI:  MISO:
+        //732
+        //['0x06', '0x00\n']
+        // MOSI: 06 MISO: 00
+        //INITIAL COMMAND LINE
+        //733
+        //['0xFF', '0x04\n']
+        // MOSI: FF MISO: 04
+        // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 4 0b100
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+        Dummy_Byte_MSB_First(0xFF,0x6);
+        CSN_On();
+        //734
+        //['', '\n']
+        // MOSI:  MISO:
+        //735
+        //['', '\n']
+        // MOSI:  MISO:
+        //736
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //737
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //738
+        //['', '\n']
+        // MOSI:  MISO:
+        //739
+        //['', '\n']
+        // MOSI:  MISO:
+        //740
+        //['0x07', '0x00\n']
+        // MOSI: 07 MISO: 00
+        //INITIAL COMMAND LINE
+        //741
+        //['0xFF', '0x41\n']
+        // MOSI: FF MISO: 41
+        // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 65 0b1000001
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+        Dummy_Byte_MSB_First(0xFF,0x7);
+        CSN_On();
+        //742
+        //['', '\n']
+        // MOSI:  MISO:
+        //743
+        //['', '\n']
+        // MOSI:  MISO:
+        //744
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //745
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //746
+        //['', '\n']
+        // MOSI:  MISO:
+        //747
+        //['', '\n']
+        // MOSI:  MISO:
+        //748
+        //['0xED', '0x00\n']
+        // MOSI: ED MISO: 00
+        //INITIAL COMMAND LINE
+        //749
+        //['0x1C', '0x00\n']
+        // MOSI: 1C MISO: 00
+        // WRITE REGISTER: 0x6d 'TX Power ' WRITE VALUE= 28 0b11100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6d);
+        Instruction_Byte_MSB_First(0x1c);
+        CSN_On();
+        //750
+        //['', '\n']
+        // MOSI:  MISO:
+        //751
+        //['', '\n']
+        // MOSI:  MISO:
+        //752
+        //['0xBA', '0x00\n']
+        // MOSI: BA MISO: 00
+        //INITIAL COMMAND LINE
+        //753
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3a 'Transmit Header 3' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3a);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //754
+        //['', '\n']
+        // MOSI:  MISO:
+        //755
+        //['', '\n']
+        // MOSI:  MISO:
+        //756
+        //['0xBB', '0x00\n']
+        // MOSI: BB MISO: 00
+        //INITIAL COMMAND LINE
+        //757
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3b 'Transmit Header 2' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3b);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //758
+        //['', '\n']
+        // MOSI:  MISO:
+        //759
+        //['', '\n']
+        // MOSI:  MISO:
+        //760
+        //['0xBC', '0x00\n']
+        // MOSI: BC MISO: 00
+        //INITIAL COMMAND LINE
+        //761
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3c 'Transmit Header 1' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3c);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //762
+        //['', '\n']
+        // MOSI:  MISO:
+        //763
+        //['', '\n']
+        // MOSI:  MISO:
+        //764
+        //['0xBB', '0x00\n']
+        // MOSI: BB MISO: 00
+        //INITIAL COMMAND LINE
+        //765
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3b 'Transmit Header 2' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3b);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //766
+        //['', '\n']
+        // MOSI:  MISO:
+        //767
+        //['', '\n']
+        // MOSI:  MISO:
+        //768
+        //['0xBC', '0x00\n']
+        // MOSI: BC MISO: 00
+        //INITIAL COMMAND LINE
+        //769
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x3c 'Transmit Header 1' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x3c);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //770
+        //['', '\n']
+        // MOSI:  MISO:
+        //771
+        //['', '\n']
+        // MOSI:  MISO:
+        //772
+        //['0xF9', '0x00\n']
+        // MOSI: F9 MISO: 00
+        //INITIAL COMMAND LINE
+        //773
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x79 'Frequency Hopping Channel Select' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x79);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //774
+        //['', '\n']
+        // MOSI:  MISO:
+        //775
+        //['', '\n']
+        // MOSI:  MISO:
+        //776
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //777
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //778
+        //['', '\n']
+        // MOSI:  MISO:
+        //779
+        //['', '\n']
+        // MOSI:  MISO:
+        //780
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //781
+        //['0x40', '0x00\n']
+        // MOSI: 40 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 64 0b1000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x40);
+        CSN_On();
+        //782
+        //['', '\n']
+        // MOSI:  MISO:
+        //783
+        //['', '\n']
+        // MOSI:  MISO:
+        //784
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //785
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //786
+        //['', '\n']
+        // MOSI:  MISO:
+        //787
+        //['', '\n']
+        // MOSI:  MISO:
+        //788
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //789
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //790
+        //['', '\n']
+        // MOSI:  MISO:
+        //791
+        //['', '\n']
+        // MOSI:  MISO:
+        //792
+        //['0x08', '0x00\n']
+        // MOSI: 08 MISO: 00
+        //INITIAL COMMAND LINE
+        //793
+        //['0xFF', '0x00\n']
+        // MOSI: FF MISO: 00
+        // READ REGISTER: 0x8 'Operating & Function Control 2' READ VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x8);
+        Dummy_Byte_MSB_First(0xFF,0x8);
+        CSN_On();
+        //794
+        //['', '\n']
+        // MOSI:  MISO:
+        //795
+        //['', '\n']
+        // MOSI:  MISO:
+        //796
+        //['0x88', '0x00\n']
+        // MOSI: 88 MISO: 00
+        //INITIAL COMMAND LINE
+        //797
+        //['0x02', '0x00\n']
+        // MOSI: 02 MISO: 00
+        // WRITE REGISTER: 0x8 'Operating & Function Control 2' WRITE VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x8);
+        Instruction_Byte_MSB_First(0x2);
+        CSN_On();
+        //798
+        //['', '\n']
+        // MOSI:  MISO:
+        //799
+        //['', '\n']
+        // MOSI:  MISO:
+        //800
+        //['0x88', '0x00\n']
+        // MOSI: 88 MISO: 00
+        //INITIAL COMMAND LINE
+        //801
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x8 'Operating & Function Control 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x8);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //802
+        //['', '\n']
+        // MOSI:  MISO:
+        //803
+        //['', '\n']
+        // MOSI:  MISO:
+        //804
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //805
+        //['0x05', '0x00\n']
+        // MOSI: 05 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 5 0b101
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x5);
+        CSN_On();
+        //806
+        //['', '\n']
+        // MOSI:  MISO:
+        //807
+        //['', '\n']
+        // MOSI:  MISO:
+        //808
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //809
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //810
+        //['', '\n']
+        // MOSI:  MISO:
+        //811
+        //['', '\n']
+        // MOSI:  MISO:
+        //812
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //813
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //814
+        //['', '\n']
+        // MOSI:  MISO:
+        //815
+        //['', '\n']
+        // MOSI:  MISO:
+        //816
+        //['0x03', '0x00\n']
+        // MOSI: 03 MISO: 00
+        //INITIAL COMMAND LINE
+        //817
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+        Dummy_Byte_MSB_First(0xFF,0x3);
+        CSN_On();
+        //818
+        //['', '\n']
+        // MOSI:  MISO:
+        //819
+        //['', '\n']
+        // MOSI:  MISO:
+        //820
+        //['0x04', '0x00\n']
+        // MOSI: 04 MISO: 00
+        //INITIAL COMMAND LINE
+        //821
+        //['0xFF', '0x02\n']
+        // MOSI: FF MISO: 02
+        // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 2 0b10
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+        Dummy_Byte_MSB_First(0xFF,0x4);
+        CSN_On();
+        //822
+        //['', '\n']
+        // MOSI:  MISO:
+        //823
+        //['', '\n']
+        // MOSI:  MISO:
+        //824
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //825
+        //['0x01', '0x00\n']
+        // MOSI: 01 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 1 0b1
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x1);
+        CSN_On();
+        //826
+        //['', '\n']
+        // MOSI:  MISO:
+        //827
+        //['', '\n']
+        // MOSI:  MISO:
+        //828
+        //['0x88', '0x00\n']
+        // MOSI: 88 MISO: 00
+        //INITIAL COMMAND LINE
+        //829
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x8 'Operating & Function Control 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x8);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //830
+        //['', '\n']
+        // MOSI:  MISO:
+        //831
+        //['', '\n']
+        // MOSI:  MISO:
+        //832
+        //['0x85', '0x00\n']
+        // MOSI: 85 MISO: 00
+        //INITIAL COMMAND LINE
+        //833
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //834
+        //['', '\n']
+        // MOSI:  MISO:
+        //835
+        //['', '\n']
+        // MOSI:  MISO:
+        //836
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //837
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //838
+        //['', '\n']
+        // MOSI:  MISO:
+        //839
+        //['', '\n']
+        // MOSI:  MISO:
+        //840
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //841
+        //['0x00', '0x00\n']
+        // MOSI: 00 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x0);
+        CSN_On();
+        //842
+        //['', '\n']
+        // MOSI:  MISO:
+        //843
+        //['', '\n']
+        // MOSI:  MISO:
+        //844
+        //['0x96', '0x00\n']
+        // MOSI: 96 MISO: 00
+        //INITIAL COMMAND LINE
+        //845
+        //['0xC0', '0x00\n']
+        // MOSI: C0 MISO: 00
+        // WRITE REGISTER: 0x16 'Wake-Up Timer Period 3' WRITE VALUE= 192 0b11000000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x16);
+        Instruction_Byte_MSB_First(0xc0);
+        CSN_On();
+        //846
+        //['', '\n']
+        // MOSI:  MISO:
+        //847
+        //['', '\n']
+        // MOSI:  MISO:
+        //848
+        //['0x95', '0x00\n']
+        // MOSI: 95 MISO: 00
+        //INITIAL COMMAND LINE
+        //849
+        //['0xA8', '0x00\n']
+        // MOSI: A8 MISO: 00
+        // WRITE REGISTER: 0x15 'Wake-Up Timer Period 2' WRITE VALUE= 168 0b10101000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x15);
+        Instruction_Byte_MSB_First(0xa8);
+        CSN_On();
+        //850
+        //['', '\n']
+        // MOSI:  MISO:
+        //851
+        //['', '\n']
+        // MOSI:  MISO:
+        //852
+        //['0x94', '0x00\n']
+        // MOSI: 94 MISO: 00
+        //INITIAL COMMAND LINE
+        //853
+        //['0x0C', '0x00\n']
+        // MOSI: 0C MISO: 00
+        // WRITE REGISTER: 0x14 'Wake-Up Timer Period 1' WRITE VALUE= 12 0b1100
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x14);
+        Instruction_Byte_MSB_First(0xc);
+        CSN_On();
+        //854
+        //['', '\n']
+        // MOSI:  MISO:
+        //855
+        //['', '\n']
+        // MOSI:  MISO:
+        //856
+        //['0x06', '0x00\n']
+        // MOSI: 06 MISO: 00
+        //INITIAL COMMAND LINE
+        //857
+        //['0xFF', '0x00\n']
+        // MOSI: FF MISO: 00
+        // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+        Dummy_Byte_MSB_First(0xFF,0x6);
+        CSN_On();
+        //858
+        //['', '\n']
+        // MOSI:  MISO:
+        //859
+        //['', '\n']
+        // MOSI:  MISO:
+        //860
+        //['0x07', '0x00\n']
+        // MOSI: 07 MISO: 00
+        //INITIAL COMMAND LINE
+        //861
+        //['0xFF', '0x00\n']
+        // MOSI: FF MISO: 00
+        // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 0 0b0
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+        Dummy_Byte_MSB_First(0xFF,0x7);
+        CSN_On();
+        //862
+        //['', '\n']
+        // MOSI:  MISO:
+        //863
+        //['', '\n']
+        // MOSI:  MISO:
+        //864
+        //['0x86', '0x00\n']
+        // MOSI: 86 MISO: 00
+        //INITIAL COMMAND LINE
+        //865
+        //['0x08', '0x00\n']
+        // MOSI: 08 MISO: 00
+        // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+        Instruction_Byte_MSB_First(0x8);
+        CSN_On();
+        //866
+        //['', '\n']
+        // MOSI:  MISO:
+        //867
+        //['', '\n']
+        // MOSI:  MISO:
+        //868
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //869
+        //['0x20', '0x00\n']
+        // MOSI: 20 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x20);
+        CSN_On();
+        //870
+        //['', '\n']
+        // MOSI:  MISO:
+        //871
+        //['', '\n']
+        // MOSI:  MISO:
+        //872
+        //['0x07', '0x00\n']
+        // MOSI: 07 MISO: 00
+        //INITIAL COMMAND LINE
+        //873
+        //['0xFF', '0x20\n']
+        // MOSI: FF MISO: 20
+        // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+        Dummy_Byte_MSB_First(0xFF,0x7);
+        CSN_On();
+        //874
+        //['', '\n']
+        // MOSI:  MISO:
+        //875
+        //['', '\n']
+        // MOSI:  MISO:
+        //876
+        //['0x87', '0x00\n']
+        // MOSI: 87 MISO: 00
+        //INITIAL COMMAND LINE
+        //877
+        //['0x20', '0x00\n']
+        // MOSI: 20 MISO: 00
+        // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 32 0b100000
+        CSN_Off();
+        Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+        Instruction_Byte_MSB_First(0x20);
+        CSN_On();
+        //878
+        //['', '\n']
+        // MOSI:  MISO:
+
+        //CHECKING IF DORJI BOARD GOT THE CONFIG, COMPARE IT WITH dorji_4432_resetted_values25_10_2022 "BUTTON COLUMN" should be the same..
+        //NICE!! the values are the same...
+        CSN_Off();
+        __delay_cycles(1);
+        Instruction_Byte_MSB_First(R_REGISTER | 0x00);  //read byte ,the next byte is not necessary to send
+        Dummy_Byte_MSB_First(0xFF,0x00);  //sending twice to read in the second 8 bit clock pulse as shown in the pdf section 3(controller int).
+        Read_Byte_MSB_First(128,ALL_REGS);
+        CSN_On();
+
+
+        //while(1){
+            //******************
+            //**START DECODING**
+            //******************
+            //0
+            //['0x85', '0x00\n']
+            // MOSI: 85 MISO: 00
+            //WRITE OPERATION
+            //1
+            //['0x00', '0x00\n']
+            // MOSI: 00 MISO: 00
+            // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+            Instruction_Byte_MSB_First(0x0);
+            CSN_On();
+            //2
+            //['', '\n']
+            // MOSI:  MISO:
+            //3
+            //['', '\n']
+            // MOSI:  MISO:
+            //4
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //5
+            //['0x0A', '0x00\n']
+            // MOSI: 0A MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 10 0b1010
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0xa);
+            CSN_On();
+            //6
+            //['', '\n']
+            // MOSI:  MISO:
+            //7
+            //['', '\n']
+            // MOSI:  MISO:
+            //8
+            //['0x03', '0x00\n']
+            // MOSI: 03 MISO: 00
+            //INITIAL COMMAND LINE
+            //9
+            //['0xFF', '0x20\n']
+            // MOSI: FF MISO: 20
+            // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+            Dummy_Byte_MSB_First(0xFF,0x3);
+            CSN_On();
+            //10
+            //['', '\n']
+            // MOSI:  MISO:
+            //11
+            //['', '\n']
+            // MOSI:  MISO:
+            //12
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            //INITIAL COMMAND LINE
+            //13
+            //['0xFF', '0x10\n']
+            // MOSI: FF MISO: 10
+            // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 16 0b10000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+            Dummy_Byte_MSB_First(0xFF,0x4);
+            CSN_On();
+            //14
+            //['', '\n']
+            // MOSI:  MISO:
+            //15
+            //['', '\n']
+            // MOSI:  MISO:
+            //16
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //17
+            //['0x21', '0x00\n']
+            // MOSI: 21 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 33 0b100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x21);
+            CSN_On();
+            //18
+            //['', '\n']
+            // MOSI:  MISO:
+            //19
+            //['', '\n']
+            // MOSI:  MISO:
+            //20
+            //['0x03', '0x00\n']
+            // MOSI: 03 MISO: 00
+            //INITIAL COMMAND LINE
+            //21
+            //['0xFF', '0x20\n']
+            // MOSI: FF MISO: 20
+            // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+            Dummy_Byte_MSB_First(0xFF,0x3);
+            CSN_On();
+            //22
+            //['', '\n']
+            // MOSI:  MISO:
+            //23
+            //['', '\n']
+            // MOSI:  MISO:
+            //24
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            //INITIAL COMMAND LINE
+            //25
+            //['0xFF', '0x12\n']
+            // MOSI: FF MISO: 12
+            // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 18 0b10010
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+            Dummy_Byte_MSB_First(0xFF,0x4);
+            CSN_On();
+            //26
+            //['', '\n']
+            // MOSI:  MISO:
+            //27
+            //['', '\n']
+            // MOSI:  MISO:
+            //28
+            //['0x85', '0x00\n']
+            // MOSI: 85 MISO: 00
+            //INITIAL COMMAND LINE
+            //29
+            //['0x00', '0x00\n']
+            // MOSI: 00 MISO: 00
+            // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+            Instruction_Byte_MSB_First(0x0);
+            CSN_On();
+            //30
+            //['', '\n']
+            // MOSI:  MISO:
+            //31
+            //['', '\n']
+            // MOSI:  MISO:
+            //32
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //33
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x8);
+            CSN_On();
+            //34
+            //['', '\n']
+            // MOSI:  MISO:
+            //35
+            //['', '\n']
+            // MOSI:  MISO:
+            //36
+            //['0x9A', '0x00\n']
+            // MOSI: 9A MISO: 00
+            //INITIAL COMMAND LINE
+            //37
+            //['0x14', '0x00\n']
+            // MOSI: 14 MISO: 00
+            // WRITE REGISTER: 0x1a 'Low Battery Detector Threshold' WRITE VALUE= 20 0b10100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x1a);
+            Instruction_Byte_MSB_First(0x14);
+            CSN_On();
+            //38
+            //['', '\n']
+            // MOSI:  MISO:
+            //39
+            //['', '\n']
+            // MOSI:  MISO:
+            //40
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //41
+            //['0xFF', '0x08\n']
+            // MOSI: FF MISO: 08
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //42
+            //['', '\n']
+            // MOSI:  MISO:
+            //43
+            //['', '\n']
+            // MOSI:  MISO:
+            //44
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //45
+            //['0x0C', '0x00\n']
+            // MOSI: 0C MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 12 0b1100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0xc);
+            CSN_On();
+            //46
+            //['', '\n']
+            // MOSI:  MISO:
+            //47
+            //['', '\n']
+            // MOSI:  MISO:
+            //48
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //49
+            //['0xFF', '0x21\n']
+            // MOSI: FF MISO: 21
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 33 0b100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+            //50
+            //['', '\n']
+            // MOSI:  MISO:
+            //51
+            //['', '\n']
+            // MOSI:  MISO:
+            //52
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //53
+            //['0x61', '0x00\n']
+            // MOSI: 61 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 97 0b1100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x61);
+            CSN_On();
+            //54
+            //['', '\n']
+            // MOSI:  MISO:
+            //55
+            //['', '\n']
+            // MOSI:  MISO:
+            //56
+            //['0x1B', '0x00\n']
+            // MOSI: 1B MISO: 00
+            //INITIAL COMMAND LINE
+            //57
+            //['0xFF', '0x00\n']
+            // MOSI: FF MISO: 00
+            // READ REGISTER: 0x1b '"Battery Voltage' READ VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x1b);
+            Dummy_Byte_MSB_First(0xFF,0x1b);
+            CSN_On();
+            //1050
+            //['', '\n']
+            // MOSI:  MISO:
+            //1051
+            //['', '\n']
+            // MOSI:  MISO:
+            //1052
+            //['0x1B', '0x00\n']
+            // MOSI: 1B MISO: 00
+            //INITIAL COMMAND LINE
+            //1053
+            //['0xFF', '0x00\n']
+            // MOSI: FF MISO: 00
+            // READ REGISTER: 0x1b '"Battery Voltage' READ VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x1b);
+            Dummy_Byte_MSB_First(0xFF,0x1b);
+            CSN_On();
+            //1054
+            //['', '\n']
+            // MOSI:  MISO:
+            //1055
+            //['', '\n']
+            // MOSI:  MISO:
+            //1056
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //1057
+            //['0xFF', '0x0C\n']
+            // MOSI: FF MISO: 0C
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 12 0b1100
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //1058
+            //['', '\n']
+            // MOSI:  MISO:
+            //1059
+            //['', '\n']
+            // MOSI:  MISO:
+            //1060
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1061
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x8);
+            CSN_On();
+            //1062
+            //['', '\n']
+            // MOSI:  MISO:
+            //1063
+            //['', '\n']
+            // MOSI:  MISO:
+            //1064
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //1065
+            //['0xFF', '0x61\n']
+            // MOSI: FF MISO: 61
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 97 0b1100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+            //1066
+            //['', '\n']
+            // MOSI:  MISO:
+            //1067
+            //['', '\n']
+            // MOSI:  MISO:
+            //1068
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1069
+            //['0x21', '0x00\n']
+            // MOSI: 21 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 33 0b100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x21);
+            CSN_On();
+            //1070
+            //['', '\n']
+            // MOSI:  MISO:
+            //1071
+            //['', '\n']
+            // MOSI:  MISO:
+            //1072
+            //['0x85', '0x00\n']
+            // MOSI: 85 MISO: 00
+            //INITIAL COMMAND LINE
+            //1073
+            //['0x00', '0x00\n']
+            // MOSI: 00 MISO: 00
+            // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+            Instruction_Byte_MSB_First(0x0);
+            CSN_On();
+            //1074
+            //['', '\n']
+            // MOSI:  MISO:
+            //1075
+            //['', '\n']
+            // MOSI:  MISO:
+            //1076
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1077
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x8);
+            CSN_On();
+            //1078
+            //['', '\n']
+            // MOSI:  MISO:
+            //1079
+            //['', '\n']
+            // MOSI:  MISO:
+            //1080
+            //['0x03', '0x00\n']
+            // MOSI: 03 MISO: 00
+            //INITIAL COMMAND LINE
+            //1081
+            //['0xFF', '0x20\n']
+            // MOSI: FF MISO: 20
+            // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+            Dummy_Byte_MSB_First(0xFF,0x3);
+            CSN_On();
+            //1082
+            //['', '\n']
+            // MOSI:  MISO:
+            //1083
+            //['', '\n']
+            // MOSI:  MISO:
+            //1084
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            //INITIAL COMMAND LINE
+            //1085
+            //['0xFF', '0x12\n']
+            // MOSI: FF MISO: 12
+            // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 18 0b10010
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+            Dummy_Byte_MSB_First(0xFF,0x4);
+            CSN_On();
+            //1086
+            //['', '\n']
+            // MOSI:  MISO:
+            //1087
+            //['', '\n']
+            // MOSI:  MISO:
+            //1088
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1089
+            //['0x21', '0x00\n']
+            // MOSI: 21 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 33 0b100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x21);
+            CSN_On();
+            //1090
+            //['', '\n']
+            // MOSI:  MISO:
+            //1091
+            //['', '\n']
+            // MOSI:  MISO:
+            //1092
+            //['0x88', '0x00\n']
+            // MOSI: 88 MISO: 00
+            //INITIAL COMMAND LINE
+            //1093
+            //['0x00', '0x00\n']
+            // MOSI: 00 MISO: 00
+            // WRITE REGISTER: 0x8 'Operating & Function Control 2' WRITE VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x8);
+            Instruction_Byte_MSB_First(0x0);
+            CSN_On();
+            //1094
+            //['', '\n']
+            // MOSI:  MISO:
+            //1095
+            //['', '\n']
+            // MOSI:  MISO:
+            //1096
+            //['0xBB', '0x00\n']
+            // MOSI: BB MISO: 00
+            //INITIAL COMMAND LINE
+            //1097
+            //['0x01', '0x00\n']
+            // MOSI: 01 MISO: 00
+            // WRITE REGISTER: 0x3b 'Transmit Header 2' WRITE VALUE= 1 0b1
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3b);
+            Instruction_Byte_MSB_First(0x1);
+            CSN_On();
+            //1098
+            //['', '\n']
+            // MOSI:  MISO:
+            //1099
+            //['', '\n']
+            // MOSI:  MISO:
+            //1100
+            //['0xBC', '0x00\n']
+            // MOSI: BC MISO: 00
+            //INITIAL COMMAND LINE
+            //1101
+            //['0x01', '0x00\n']
+            // MOSI: 01 MISO: 00
+            // WRITE REGISTER: 0x3c 'Transmit Header 1' WRITE VALUE= 1 0b1
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3c);
+            Instruction_Byte_MSB_First(0x1);
+            CSN_On();
+            //1102
+            //['', '\n']
+            // MOSI:  MISO:
+            //1103
+            //['', '\n']
+            // MOSI:  MISO:
+            //1104
+            //['0xBE', '0x00\n']
+            // MOSI: BE MISO: 00
+            //INITIAL COMMAND LINE
+            //1105
+            //['0x09', '0x00\n']
+            // MOSI: 09 MISO: 00
+            // WRITE REGISTER: 0x3e 'Transmit Packet Length' WRITE VALUE= 9 0b1001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3e);
+            Instruction_Byte_MSB_First(0x9);
+            CSN_On();
+            //1106
+            //['', '\n']
+            // MOSI:  MISO:
+            //1107
+            //['', '\n']
+            // MOSI:  MISO:
+            //1108
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            //INITIAL COMMAND LINE
+            //1109
+            //['0xFF', '0x00\n']
+            // MOSI: FF MISO: 00
+            // READ REGISTER: 0x8 'Operating & Function Control 2' READ VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x8);
+            Dummy_Byte_MSB_First(0xFF,0x8);
+            CSN_On();
+            //1110
+            //['', '\n']
+            // MOSI:  MISO:
+            //1111
+            //['', '\n']
+            // MOSI:  MISO:
+            //1112
+            //['0x88', '0x00\n']
+            // MOSI: 88 MISO: 00
+            //INITIAL COMMAND LINE
+            //1113
+            //['0x01', '0x00\n']
+            // MOSI: 01 MISO: 00
+            // WRITE REGISTER: 0x8 'Operating & Function Control 2' WRITE VALUE= 1 0b1
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x8);
+            Instruction_Byte_MSB_First(0x1);
+            CSN_On();
+            //1114
+            //['', '\n']
+            // MOSI:  MISO:
+            //1115
+            //['', '\n']
+            // MOSI:  MISO:
+            //1116
+            //['0x88', '0x00\n']
+            // MOSI: 88 MISO: 00
+            //INITIAL COMMAND LINE
+            //1117
+            //['0x00', '0x00\n']
+            // MOSI: 00 MISO: 00
+            // WRITE REGISTER: 0x8 'Operating & Function Control 2' WRITE VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x8);
+            Instruction_Byte_MSB_First(0x0);
+            CSN_On();
+            //1118
+            //['', '\n']
+            // MOSI:  MISO:
+            //1119
+            //['', '\n']
+            // MOSI:  MISO:
+            //1120
+            //['0xBE', '0x00\n']
+            // MOSI: BE MISO: 00
+            //INITIAL COMMAND LINE
+            //1121
+            //['0x09', '0x00\n']
+            // MOSI: 09 MISO: 00
+            // WRITE REGISTER: 0x3e 'Transmit Packet Length' WRITE VALUE= 9 0b1001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3e);
+            Instruction_Byte_MSB_First(0x9);
+            CSN_On();
+            CSN_Off();  //FILLING FIFO WITH 9 Bytes
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7F);
+            Instruction_Byte_MSB_First(0x55);  //
+            Instruction_Byte_MSB_First(0x48);
+            Instruction_Byte_MSB_First(0x4E);
+            Instruction_Byte_MSB_First(0x1C);
+            Instruction_Byte_MSB_First(0xDA);
+            Instruction_Byte_MSB_First(0x31);
+            Instruction_Byte_MSB_First(0x01);
+            Instruction_Byte_MSB_First(0xBE);
+            Instruction_Byte_MSB_First(0x03);
+            CSN_On();
+            //1137
+            //['0x00', '0x00\n']
+            // MOSI: 00 MISO: 00
+            // WRITE REGISTER: 0x79 'Frequency Hopping Channel Select' WRITE VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x79);
+            Instruction_Byte_MSB_First(0x0);
+            CSN_On();
+            //1138
+            //['', '\n']
+            // MOSI:  MISO:
+            //1139
+            //['', '\n']
+            // MOSI:  MISO:
+            //1140
+            //['0xBA', '0x00\n']
+            // MOSI: BA MISO: 00
+            //INITIAL COMMAND LINE
+            //1141
+            //['0x13', '0x00\n']
+            // MOSI: 13 MISO: 00
+            // WRITE REGISTER: 0x3a 'Transmit Header 3' WRITE VALUE= 19 0b10011
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3a);
+            Instruction_Byte_MSB_First(0x13);
+            CSN_On();
+            //1142
+            //['', '\n']
+            // MOSI:  MISO:
+            //1143
+            //['', '\n']
+            // MOSI:  MISO:
+            //1144
+            //['0xBB', '0x00\n']
+            // MOSI: BB MISO: 00
+            //INITIAL COMMAND LINE
+            //1145
+            //['0x01', '0x00\n']
+            // MOSI: 01 MISO: 00
+            // WRITE REGISTER: 0x3b 'Transmit Header 2' WRITE VALUE= 1 0b1
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3b);
+            Instruction_Byte_MSB_First(0x1);
+            CSN_On();
+            //1146
+            //['', '\n']
+            // MOSI:  MISO:
+            //1147
+            //['', '\n']
+            // MOSI:  MISO:
+            //1148
+            //['0xBC', '0x00\n']
+            // MOSI: BC MISO: 00
+            //INITIAL COMMAND LINE
+            //1149
+            //['0x01', '0x00\n']
+            // MOSI: 01 MISO: 00
+            // WRITE REGISTER: 0x3c 'Transmit Header 1' WRITE VALUE= 1 0b1
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3c);
+            Instruction_Byte_MSB_First(0x1);
+            CSN_On();
+            //1150
+            //['', '\n']
+            // MOSI:  MISO:
+            //1151
+            //['', '\n']
+            // MOSI:  MISO:
+            //1152
+            //['0xBD', '0x00\n']
+            // MOSI: BD MISO: 00
+            //INITIAL COMMAND LINE
+            //1153
+            //['0x01', '0x00\n']
+            // MOSI: 01 MISO: 00
+            // WRITE REGISTER: 0x3d 'Transmit Header 0' WRITE VALUE= 1 0b1
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x3d);
+            Instruction_Byte_MSB_First(0x1);
+            CSN_On();
+            //1154
+            //['', '\n']
+            // MOSI:  MISO:
+            //1155
+            //['', '\n']
+            // MOSI:  MISO:
+            //1156
+            //['0xA7', '0x00\n']
+            // MOSI: A7 MISO: 00
+            //INITIAL COMMAND LINE
+            //1157
+            //['0x78', '0x00\n']
+            // MOSI: 78 MISO: 00
+            // WRITE REGISTER: 0x27 'RSSI Threshold for Clear Channel Indicator' WRITE VALUE= 120 0b1111000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x27);
+            Instruction_Byte_MSB_First(0x78);
+            CSN_On();
+            //1158
+            //['', '\n']
+            // MOSI:  MISO:
+            //1159
+            //['', '\n']
+            // MOSI:  MISO:
+            //1160
+            //['0x03', '0x00\n']
+            // MOSI: 03 MISO: 00
+            //INITIAL COMMAND LINE
+            //1161
+            //['0xFF', '0x20\n']
+            // MOSI: FF MISO: 20
+            // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+            Dummy_Byte_MSB_First(0xFF,0x3);
+            CSN_On();
+            //1162
+            //['', '\n']
+            // MOSI:  MISO:
+            //1163
+            //['', '\n']
+            // MOSI:  MISO:
+            //1164
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            //INITIAL COMMAND LINE
+            //1165
+            //['0xFF', '0x12\n']
+            // MOSI: FF MISO: 12
+            // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 18 0b10010
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+            Dummy_Byte_MSB_First(0xFF,0x4);
+            CSN_On();
+            //1166
+            //['', '\n']
+            // MOSI:  MISO:
+            //1167
+            //['', '\n']
+            // MOSI:  MISO:
+            //1168
+            //['0x85', '0x00\n']
+            // MOSI: 85 MISO: 00
+            //INITIAL COMMAND LINE
+            //1169
+            //['0x00', '0x00\n']
+            // MOSI: 00 MISO: 00
+            // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+            Instruction_Byte_MSB_First(0x0);
+            CSN_On();
+            //1170
+            //['', '\n']
+            // MOSI:  MISO:
+            //1171
+            //['', '\n']
+            // MOSI:  MISO:
+            //1172
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1173
+            //['0x18', '0x00\n']
+            // MOSI: 18 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 24 0b11000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x18);
+            CSN_On();
+            //1174
+            //['', '\n']
+            // MOSI:  MISO:
+            //1175
+            //['', '\n']
+            // MOSI:  MISO:
+            //1176
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1177
+            //['0x25', '0x00\n']
+            // MOSI: 25 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 37 0b100101
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x25);
+            CSN_On();
+            //1178
+            //['', '\n']
+            // MOSI:  MISO:
+            //1179
+            //['', '\n']
+            // MOSI:  MISO:
+            //1180
+            //['0x9A', '0x00\n']
+            // MOSI: 9A MISO: 00
+            //INITIAL COMMAND LINE
+            //1181
+            //['0x14', '0x00\n']
+            // MOSI: 14 MISO: 00
+            // WRITE REGISTER: 0x1a 'Low Battery Detector Threshold' WRITE VALUE= 20 0b10100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x1a);
+            Instruction_Byte_MSB_First(0x14);
+            CSN_On();
+            //1182
+            //['', '\n']
+            // MOSI:  MISO:
+            //1183
+            //['', '\n']
+            // MOSI:  MISO:
+            //1184
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1185
+            //['0x21', '0x00\n']
+            // MOSI: 21 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 33 0b100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x21);
+            CSN_On();
+            //1186
+            //['', '\n']
+            // MOSI:  MISO:
+            //1187
+            //['', '\n']
+            // MOSI:  MISO:
+            //1188
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1189
+            //['0x25', '0x00\n']
+            // MOSI: 25 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 37 0b100101
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x25);
+            CSN_On();
+            //1190
+            //['', '\n']
+            // MOSI:  MISO:
+            //1191
+            //['', '\n']
+            // MOSI:  MISO:
+            //1192
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //1193
+            //['0xFF', '0x18\n']
+            // MOSI: FF MISO: 18
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 24 0b11000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //1194
+            //['', '\n']
+            // MOSI:  MISO:
+            //1195
+            //['', '\n']
+            // MOSI:  MISO:
+            //1196
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1197
+            //['0x1C', '0x00\n']
+            // MOSI: 1C MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 28 0b11100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x1c);
+            CSN_On();
+            //1198
+            //['', '\n']
+            // MOSI:  MISO:
+            //1199
+            //['', '\n']
+            // MOSI:  MISO:
+            //1200
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //1201
+            //['0xFF', '0x25\n']
+            // MOSI: FF MISO: 25
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 37 0b100101
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+            //1202
+            //['', '\n']
+            // MOSI:  MISO:
+            //1203
+            //['', '\n']
+            // MOSI:  MISO:
+            //1204
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1205
+            //['0x65', '0x00\n']
+            // MOSI: 65 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 101 0b1100101
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x65);
+            CSN_On();
+            //1206
+            //['', '\n']
+            // MOSI:  MISO:
+            //1207
+            //['', '\n']
+            // MOSI:  MISO:
+            //1208
+            //['0x03', '0x00\n']
+            // MOSI: 03 MISO: 00
+            //INITIAL COMMAND LINE
+            //1209
+            //['0xFF', '0x20\n']
+            // MOSI: FF MISO: 20
+            // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+            Dummy_Byte_MSB_First(0xFF,0x3);
+            CSN_On();
+            //1210
+            //['', '\n']
+            // MOSI:  MISO:
+            //1211
+            //['', '\n']
+            // MOSI:  MISO:
+            //1212
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            //INITIAL COMMAND LINE
+            //1213
+            //['0xFF', '0x06\n']
+            // MOSI: FF MISO: 06
+            // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 6 0b110
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+            Dummy_Byte_MSB_First(0xFF,0x4);
+            CSN_On();
+            //1214
+            //['', '\n']
+            // MOSI:  MISO:
+            //1215
+            //['', '\n']
+            // MOSI:  MISO:
+            //1216
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1217
+            //['0x21', '0x00\n']
+            // MOSI: 21 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 33 0b100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x21);
+            CSN_On();
+            //1218
+            //['', '\n']
+            // MOSI:  MISO:
+            //1219
+            //['', '\n']
+            // MOSI:  MISO:
+            //1220
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1221
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x8);
+            CSN_On();
+            //1222
+            //['', '\n']
+            // MOSI:  MISO:
+            //1223
+            //['', '\n']
+            // MOSI:  MISO:
+            //1224
+            //['0x85', '0x00\n']
+            // MOSI: 85 MISO: 00
+            //INITIAL COMMAND LINE
+            //1225
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            // WRITE REGISTER: 0x5 'Interrupt Enable 1' WRITE VALUE= 4 0b100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x5);
+            Instruction_Byte_MSB_First(0x4);
+            CSN_On();
+            //1226
+            //['', '\n']
+            // MOSI:  MISO:
+            //1227
+            //['', '\n']
+            // MOSI:  MISO:
+            //1228
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1229
+            //['0x29', '0x00\n']
+            // MOSI: 29 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 41 0b101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x29);
+            CSN_On();
+            //1230
+            //['', '\n']
+            // MOSI:  MISO:
+            //1231
+            //['', '\n']
+            // MOSI:  MISO:
+            //1232
+            //['0x1B', '0x00\n']
+            // MOSI: 1B MISO: 00
+            //INITIAL COMMAND LINE
+            //1233
+            //['0xFF', '0x0F\n']
+            // MOSI: FF MISO: 0F
+            // READ REGISTER: 0x1b '"Battery Voltage' READ VALUE= 15 0b1111
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x1b);
+            Dummy_Byte_MSB_First(0xFF,0x1b);
+            CSN_On();
+            //1234
+            //['', '\n']
+            // MOSI:  MISO:
+            //1235
+            //['', '\n']
+            // MOSI:  MISO:
+            //1236
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //1237
+            //['0xFF', '0x08\n']
+            // MOSI: FF MISO: 08
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //1238
+            //['', '\n']
+            // MOSI:  MISO:
+            //1239
+            //['', '\n']
+            // MOSI:  MISO:
+            //1240
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1241
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x8);
+            CSN_On();
+            //1242
+            //['', '\n']
+            // MOSI:  MISO:
+            //1243
+            //['', '\n']
+            // MOSI:  MISO:
+            //1244
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //1245
+            //['0xFF', '0x29\n']
+            // MOSI: FF MISO: 29
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 41 0b101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+            //1246
+            //['', '\n']
+            // MOSI:  MISO:
+            //1247
+            //['', '\n']
+            // MOSI:  MISO:
+            //1248
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1249
+            //['0x29', '0x00\n']
+            // MOSI: 29 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 41 0b101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x29);
+            CSN_On();
+            //1250
+            //['', '\n']
+            // MOSI:  MISO:
+            //1251
+            //['', '\n']
+            // MOSI:  MISO:
+            //1252
+            //['0x9A', '0x00\n']
+            // MOSI: 9A MISO: 00
+            //INITIAL COMMAND LINE
+            //1253
+            //['0x14', '0x00\n']
+            // MOSI: 14 MISO: 00
+            // WRITE REGISTER: 0x1a 'Low Battery Detector Threshold' WRITE VALUE= 20 0b10100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x1a);
+            Instruction_Byte_MSB_First(0x14);
+            CSN_On();
+            //1254
+            //['', '\n']
+            // MOSI:  MISO:
+            //1255
+            //['', '\n']
+            // MOSI:  MISO:
+            //1256
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //1257
+            //['0xFF', '0x08\n']
+            // MOSI: FF MISO: 08
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //1258
+            //['', '\n']
+            // MOSI:  MISO:
+            //1259
+            //['', '\n']
+            // MOSI:  MISO:
+            //1260
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1261
+            //['0x0C', '0x00\n']
+            // MOSI: 0C MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 12 0b1100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0xc);
+            CSN_On();
+            //1262
+            //['', '\n']
+            // MOSI:  MISO:
+            //1263
+            //['', '\n']
+            // MOSI:  MISO:
+            //1264
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //1265
+            //['0xFF', '0x29\n']
+            // MOSI: FF MISO: 29
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 41 0b101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+            //1266
+            //['', '\n']
+            // MOSI:  MISO:
+            //1267
+            //['', '\n']
+            // MOSI:  MISO:
+            //1268
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1269
+            //['0x69', '0x00\n']
+            // MOSI: 69 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 105 0b1101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x69);
+            CSN_On();
+            //1270
+            //['', '\n']
+            // MOSI:  MISO:
+            //1271
+            //['', '\n']
+            // MOSI:  MISO:
+            //1272
+            //['0x03', '0x00\n']
+            // MOSI: 03 MISO: 00
+            //INITIAL COMMAND LINE
+            //1273
+            //['0xFF', '0x00\n']
+            // MOSI: FF MISO: 00
+            // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 0 0b0
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+            Dummy_Byte_MSB_First(0xFF,0x3);
+            CSN_On();
+            //1274
+            //['', '\n']
+            // MOSI:  MISO:
+            //1275
+            //['', '\n']
+            // MOSI:  MISO:
+            //1276
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            //INITIAL COMMAND LINE
+            //1277
+            //['0xFF', '0x06\n']
+            // MOSI: FF MISO: 06
+            // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 6 0b110
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+            Dummy_Byte_MSB_First(0xFF,0x4);
+            CSN_On();
+            //1278
+            //['', '\n']
+            // MOSI:  MISO:
+            //1279
+            //['', '\n']
+            // MOSI:  MISO:
+            //1280
+            //['0x1B', '0x00\n']
+            // MOSI: 1B MISO: 00
+            //INITIAL COMMAND LINE
+            //1281
+            //['0xFF', '0x09\n']
+            // MOSI: FF MISO: 09
+            // READ REGISTER: 0x1b '"Battery Voltage' READ VALUE= 9 0b1001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x1b);
+            Dummy_Byte_MSB_First(0xFF,0x1b);
+            CSN_On();
+            //1282
+            //['', '\n']
+            // MOSI:  MISO:
+            //1283
+            //['', '\n']
+            // MOSI:  MISO:
+            //1284
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //1285
+            //['0xFF', '0x0C\n']
+            // MOSI: FF MISO: 0C
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 12 0b1100
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //1286
+            //['', '\n']
+            // MOSI:  MISO:
+            //1287
+            //['', '\n']
+            // MOSI:  MISO:
+            //1288
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1289
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x8);
+            CSN_On();
+            //1290
+            //['', '\n']
+            // MOSI:  MISO:
+            //1291
+            //['', '\n']
+            // MOSI:  MISO:
+            //1292
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //1293
+            //['0xFF', '0x69\n']
+            // MOSI: FF MISO: 69
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 105 0b1101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+            //1294
+            //['', '\n']
+            // MOSI:  MISO:
+            //1295
+            //['', '\n']
+            // MOSI:  MISO:
+            //1296
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1297
+            //['0x29', '0x00\n']
+            // MOSI: 29 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 41 0b101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x29);
+            CSN_On();
+            //1298
+            //['', '\n']
+            // MOSI:  MISO:
+            //1299
+            //['', '\n']
+            // MOSI:  MISO:
+            //1300
+            //['0x9A', '0x00\n']
+            // MOSI: 9A MISO: 00
+            //INITIAL COMMAND LINE
+            //1301
+            //['0x14', '0x00\n']
+            // MOSI: 14 MISO: 00
+            // WRITE REGISTER: 0x1a 'Low Battery Detector Threshold' WRITE VALUE= 20 0b10100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x1a);
+            Instruction_Byte_MSB_First(0x14);
+            CSN_On();
+            //1302
+            //['', '\n']
+            // MOSI:  MISO:
+            //1303
+            //['', '\n']
+            // MOSI:  MISO:
+            //1304
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //1305
+            //['0xFF', '0x08\n']
+            // MOSI: FF MISO: 08
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //1306
+            //['', '\n']
+            // MOSI:  MISO:
+            //1307
+            //['', '\n']
+            // MOSI:  MISO:
+            //1308
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1309
+            //['0x0C', '0x00\n']
+            // MOSI: 0C MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 12 0b1100
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0xc);
+            CSN_On();
+            //1310
+            //['', '\n']
+            // MOSI:  MISO:
+            //1311
+            //['', '\n']
+            // MOSI:  MISO:
+            //1312
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //1313
+            //['0xFF', '0x29\n']
+            // MOSI: FF MISO: 29
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 41 0b101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+            //1314
+            //['', '\n']
+            // MOSI:  MISO:
+            //1315
+            //['', '\n']
+            // MOSI:  MISO:
+            //1316
+            //['0x87', '0x00\n']
+            // MOSI: 87 MISO: 00
+            //INITIAL COMMAND LINE
+            //1317
+            //['0x69', '0x00\n']
+            // MOSI: 69 MISO: 00
+            // WRITE REGISTER: 0x7 'Operating & Function Control 1' WRITE VALUE= 105 0b1101001
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x7);
+            Instruction_Byte_MSB_First(0x69);
+            CSN_On();
+            //1318
+            //['', '\n']
+            // MOSI:  MISO:
+            //1319
+            //['', '\n']
+            // MOSI:  MISO:
+            //1320
+            //['0x03', '0x00\n']
+            // MOSI: 03 MISO: 00
+            //INITIAL COMMAND LINE
+            //1321
+            //['0xFF', '0x20\n']
+            // MOSI: FF MISO: 20
+            // READ REGISTER: 0x3 'Interrupt Status 1' READ VALUE= 32 0b100000
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x3);
+            Dummy_Byte_MSB_First(0xFF,0x3);
+            CSN_On();
+            //1322
+            //['', '\n']
+            // MOSI:  MISO:
+            //1323
+            //['', '\n']
+            // MOSI:  MISO:
+            //1324
+            //['0x04', '0x00\n']
+            // MOSI: 04 MISO: 00
+            //INITIAL COMMAND LINE
+            //1325
+            //['0xFF', '0x06\n']
+            // MOSI: FF MISO: 06
+            // READ REGISTER: 0x4 'Interrupt Status 2' READ VALUE= 6 0b110
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x4);
+            Dummy_Byte_MSB_First(0xFF,0x4);
+            CSN_On();
+            //1326
+            //['', '\n']
+            // MOSI:  MISO:
+            //1327
+            //['', '\n']
+            // MOSI:  MISO:
+            //1328
+            //['0x1B', '0x00\n']
+            // MOSI: 1B MISO: 00
+            //INITIAL COMMAND LINE
+            //1329
+            //['0xFF', '0x09\n']
+            // MOSI: FF MISO: 09
+            // READ REGISTER: 0x1b '"Battery Voltage' READ VALUE= 9 0b1001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x1b);
+            Dummy_Byte_MSB_First(0xFF,0x1b);
+            CSN_On();
+            //1330
+            //['', '\n']
+            // MOSI:  MISO:
+            //1331
+            //['', '\n']
+            // MOSI:  MISO:
+            //1332
+            //['0x06', '0x00\n']
+            // MOSI: 06 MISO: 00
+            //INITIAL COMMAND LINE
+            //1333
+            //['0xFF', '0x0C\n']
+            // MOSI: FF MISO: 0C
+            // READ REGISTER: 0x6 'Interrupt Enable 2' READ VALUE= 12 0b1100
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x6);
+            Dummy_Byte_MSB_First(0xFF,0x6);
+            CSN_On();
+            //1334
+            //['', '\n']
+            // MOSI:  MISO:
+            //1335
+            //['', '\n']
+            // MOSI:  MISO:
+            //1336
+            //['0x86', '0x00\n']
+            // MOSI: 86 MISO: 00
+            //INITIAL COMMAND LINE
+            //1337
+            //['0x08', '0x00\n']
+            // MOSI: 08 MISO: 00
+            // WRITE REGISTER: 0x6 'Interrupt Enable 2' WRITE VALUE= 8 0b1000
+            CSN_Off();
+            Instruction_Byte_MSB_First(W_REGISTER | 0x6);
+            Instruction_Byte_MSB_First(0x8);
+            CSN_On();
+            //1338
+            //['', '\n']
+            // MOSI:  MISO:
+            //1339
+            //['', '\n']
+            // MOSI:  MISO:
+            //1340
+            //['0x07', '0x00\n']
+            // MOSI: 07 MISO: 00
+            //INITIAL COMMAND LINE
+            //1341
+            //['0xFF', '0x61\n']
+            // MOSI: FF MISO: 61
+            // READ REGISTER: 0x7 'Operating & Function Control 1' READ VALUE= 97 0b1100001
+            CSN_Off();
+            Instruction_Byte_MSB_First(R_REGISTER | 0x7);
+            Dummy_Byte_MSB_First(0xFF,0x7);
+            CSN_On();
+
+            //}
+            while(1);
+
+}
+void SCLK_Pulse (void)
+{
+  P2OUT |= SCLK;//set high with OR 1
+  P2OUT ^= SCLK;//toggle with XOR 1
+}
+void Send_Bit (unsigned int value)
+{
+    if (value != 0){
+        P2OUT |= MOSI;}
+    else {
+        P2OUT &= ~MOSI;
+    }
+}
+
+void CSN_On (void)
+{
+    P2OUT |= CSN;
+}
+void CSN_Off (void)
+{
+    P2OUT &= ~CSN;
+}
+void Write_Byte(int content)
+{
+
+    for (j=0;j<8;j++){
+             x = (content & (1 << j));  //Write to Address
+             Send_Bit(x);
+             SCLK_Pulse();
+        }
+}
+void Instruction_Byte_MSB_First(int content)
+{
+
+    for (k=7;k>=0;--k){
+             x = (content & (1 << k));  //Write to Address
+             //status_reg <<= 1;
+             Send_Bit(x);
+
+            SCLK_Pulse();
+
+                         }
+
+}
+void Dummy_Byte_MSB_First(int content, unsigned char reg_addr)
+{
+
+    for (k=7;k>=0;--k){
+             x = (content & (1 << k));  //Write to Address
+             ALL_REGS[reg_addr] <<= 1;
+             Send_Bit(x);
+
+            if ((P2IN & MISO) == 0x02){
+
+
+                                             //status_reg |= 0b00000001;
+                ALL_REGS[reg_addr] |= 0b00000001;
+                                                }
+                                                else {
+
+
+                                             //status_reg  &= 0b11111110;
+                ALL_REGS[reg_addr] &= 0b11111110;
+                                                }
+
+            SCLK_Pulse();
+
+                         }
+
+}
+/*
+void Dummy_Byte_MSB_First(int content)
+{
+
+    for (k=7;k>=0;--k){
+             x = (content & (1 << k));  //Write to Address
+             ALL_REGS[0] <<= 1;
+             Send_Bit(x);
+
+            if ((P2IN & MISO) == 0x02){
+
+
+                                             //status_reg |= 0b00000001;
+                ALL_REGS[0] |= 0b00000001;
+                                                }
+                                                else {
+
+
+                                             //status_reg  &= 0b11111110;
+                ALL_REGS[0] &= 0b11111110;
+                                                }
+
+            SCLK_Pulse();
+
+                         }
+
+}
+*/
+void Read_Byte_MSB_First(int index, unsigned char regname[])
+{
+    //for (i=0;i<=(index-1);i++){
+    for (i=1;i<=(index-1);i++){   //starting the index from 1 to 127 since we read the first reg in instruction byte)
+        for (k=0;k<8;k++){
+           regname[i] <<= 1;
+           //SCLK_Pulse();
+
+                     if ((P2IN & MISO) == 0x02){
+
+                                                 //read_reg |= 0b10000000;
+                                                   regname[i] |= 0b00000001;
+                                                    }
+                                                    else {
+
+                                                 //read_reg  &= 0b01111111;
+                                                   regname[i]  &= 0b11111110;
+                                                    }
+                    SCLK_Pulse();
+    }
+}
+}
+void Write_Byte_MSB_First(unsigned char content[], int index2)
+{
+    for (i=0;i<=(index2-1);i++){
+    for (k=7;k>=0;--k){
+
+             x = (content[i] & (1 << k));  //Write to Address
+             Send_Bit(x);
+             SCLK_Pulse();
+
+                         }
+
+}
+}
+void Write_Payload_MSB_First(int pyld[], int index3)
+{
+    for (i=0;i<=(index3-1);i++){
+        for (k=15;k>=0;--k){
+
+                     x = (pyld[i] & (1 << k));  //Write to Address
+                     Send_Bit(x);
+                     SCLK_Pulse();
+
+                                 }
+
+        }
+        }
